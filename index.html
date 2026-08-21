@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>R1·M1·M2·T Scanner — Bybit USDT Perpetual</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root{
+    --bg:#0a0c11;
+    --bg-elev:#0d0f16;
+    --panel:#12151d;
+    --panel2:#171b26;
+    --panel3:#1c212e;
+    --border:#242a38;
+    --border-soft:#1a1f2b;
+    --text:#e9edf4;
+    --dim:#8b93a5;
+    --dimmer:#565f73;
+    --accent:#4aa8ff;
+    --accent-soft:#1a3a5c;
+    --green:#26c281;
+    --green-soft:#0f2a1f;
+    --red:#f2545e;
+    --red-soft:#2a1418;
+    --amber:#f0b429;
+    --violet:#a78bfa;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --ease: cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 500px at 15% -10%, #0f2540 0%, transparent 55%),
+      radial-gradient(900px 400px at 100% 0%, #1a1030 0%, transparent 50%),
+      var(--bg);
+    color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:#28303f;border-radius:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  @keyframes fadeSlideIn{
+    from{opacity:0; transform:translateY(10px) scale(.985);}
+    to{opacity:1; transform:translateY(0) scale(1);}
+  }
+  @keyframes softPulseGreen{
+    0%{box-shadow:0 0 0 0 rgba(38,194,129,.45);}
+    70%{box-shadow:0 0 0 10px rgba(38,194,129,0);}
+    100%{box-shadow:0 0 0 0 rgba(38,194,129,0);}
+  }
+  @keyframes softPulseRed{
+    0%{box-shadow:0 0 0 0 rgba(242,84,94,.45);}
+    70%{box-shadow:0 0 0 10px rgba(242,84,94,0);}
+    100%{box-shadow:0 0 0 0 rgba(242,84,94,0);}
+  }
+  @keyframes shimmerSweep{
+    0%{background-position:-300px 0;}
+    100%{background-position:300px 0;}
+  }
+  @keyframes dotBreathe{
+    0%,100%{opacity:1; transform:scale(1);}
+    50%{opacity:.55; transform:scale(.82);}
+  }
+  @keyframes fadeIn{
+    from{opacity:0;} to{opacity:1;}
+  }
+  .card-enter{ animation: fadeSlideIn .42s var(--ease) both; }
+  .pulse-buy{ animation: softPulseGreen 1.4s var(--ease) 2; }
+  .pulse-sl{ animation: softPulseRed 1.4s var(--ease) 2; }
+  .fade-in{ animation: fadeIn .3s var(--ease) both; }
+
+  header{
+    position:sticky;top:0;z-index:50;
+    background:linear-gradient(180deg,#0e1119ee 0%, #0a0c11ee 100%);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border-soft);
+    padding:11px 18px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  }
+  .brand{display:flex;align-items:center;gap:9px;margin-right:6px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 9px var(--green);animation:dotBreathe 2.6s ease-in-out infinite;}
+  .brand b{font-size:13.5px;letter-spacing:.05em;}
+  .brand small{color:var(--dimmer);font-family:var(--mono);font-size:9.5px;display:block;margin-top:-1px;letter-spacing:.02em;}
+
+  input[type=text],input[type=number],select{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    padding:7px 11px;border-radius:7px;font-family:var(--mono);font-size:12.5px;outline:none;
+    transition:border-color .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+  }
+  input[type=text]:focus,input[type=number]:focus,select:focus{
+    border-color:var(--accent); box-shadow:0 0 0 3px rgba(74,168,255,.12);
+  }
+  select{cursor:pointer;-webkit-appearance:none;appearance:none;padding-right:26px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%238b93a5'/></svg>");
+    background-repeat:no-repeat;background-position:right 9px center;}
+  #symbolInput{width:130px;text-transform:uppercase;}
+  #filterInput{width:150px;transition:width .25s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);}
+  #filterInput:focus{width:190px;}
+  #topNInput{width:78px;display:none;}
+
+  button{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    padding:7px 14px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:var(--sans);font-weight:500;
+    transition:border-color .16s var(--ease), background .16s var(--ease), transform .08s var(--ease), box-shadow .16s var(--ease);
+  }
+  button:hover{border-color:var(--accent); background:var(--panel3);}
+  button:active{transform:scale(.96);}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+  button.primary{background:linear-gradient(180deg,#2c86e8,#1e6cc4);border-color:#3a91f0;color:#fff;font-weight:600;box-shadow:0 2px 10px rgba(46,134,232,.25);}
+  button.primary:hover{border-color:#63b0ff;box-shadow:0 3px 14px rgba(46,134,232,.38);}
+  button.primary:active{transform:scale(.96);}
+  button.scanning{background:linear-gradient(90deg, #1e6cc4 0%, #2c86e8 25%, #1e6cc4 50%, #2c86e8 75%, #1e6cc4 100%);
+    background-size:200% 100%; animation:shimmerSweep 1.6s linear infinite;}
+  button.stop{background:#3a1418;border-color:#5a1f25;color:#ff9aa0;}
+  .toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);user-select:none;cursor:pointer;}
+  .toggle input{accent-color:var(--accent);}
+
+  .spacer{flex:1;}
+  .status-line{font-family:var(--mono);font-size:11px;color:var(--dimmer);transition:color .2s var(--ease);}
+  .status-line b{color:var(--dim);}
+
+  #progressWrap{width:100%;height:3px;background:var(--border-soft);position:relative;overflow:hidden;}
+  #progressBar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--violet));
+    transition:width .35s var(--ease);}
+  #progressBar.active{background-size:200% 100%; animation:shimmerSweep 1.2s linear infinite, none;
+    background-image:linear-gradient(90deg,var(--accent),var(--violet),var(--accent));}
+
+  main{padding:18px;max-width:1520px;margin:0 auto;}
+
+  .panel{
+    background:linear-gradient(180deg, var(--panel) 0%, var(--bg-elev) 100%);
+    border:1px solid var(--border-soft);border-radius:12px;padding:14px;margin-bottom:18px;
+    box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 8px 24px -18px rgba(0,0,0,.6);
+  }
+  .panel-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+  .panel-title h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);margin:0;font-weight:600;}
+  .panel-title .meta{font-family:var(--mono);font-size:11px;color:var(--dimmer);}
+
+  #focusedChart{width:100%;height:420px;border-radius:8px;overflow:hidden;animation:fadeIn .35s var(--ease) both;}
+  #focusedRsi{width:100%;height:110px;margin-top:6px;border-radius:8px;overflow:hidden;}
+  #focusedInfo{font-family:var(--mono);font-size:11.5px;color:var(--dim);padding:8px 2px 0;line-height:1.75;
+    transition:opacity .2s var(--ease);}
+  #focusedInfo .stage{padding:2px 8px;border-radius:5px;font-weight:600;font-size:10.5px;letter-spacing:.03em;}
+  .stage-ok{background:var(--green-soft);color:var(--green);}
+  .stage-mid{background:#2c2410;color:var(--amber);}
+  .stage-none{background:var(--red-soft);color:var(--red);}
+
+  #watchlistHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:15px;margin-top:12px;}
+  .card{
+    background:linear-gradient(180deg, var(--panel3) 0%, var(--panel2) 100%);
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;
+    display:flex;flex-direction:column;
+    transition:border-color .2s var(--ease), transform .18s var(--ease), box-shadow .2s var(--ease);
+  }
+  .card:hover{border-color:#2e3648; transform:translateY(-2px); box-shadow:0 10px 26px -16px rgba(0,0,0,.65);}
+  .card{transition:border-color .2s var(--ease), transform .18s var(--ease), box-shadow .2s var(--ease), opacity .18s var(--ease);}
+  .card.filtered-out{opacity:0; transform:scale(.97); pointer-events:none;}
+  .card-head{padding:11px 13px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+  .card-head .sym{font-weight:700;font-size:14px;letter-spacing:.02em;}
+  .card-head .badge{
+    font-family:var(--mono);font-size:9.5px;padding:4px 9px;border-radius:20px;background:var(--green-soft);color:var(--green);
+    border:1px solid #1b4a34;letter-spacing:.04em;font-weight:600;
+    transition:background .25s var(--ease), color .25s var(--ease), border-color .25s var(--ease);
+  }
+  .badge.entered{background:var(--accent-soft);color:var(--accent);border-color:#28568a;}
+  .badge.sl{background:var(--red-soft);color:var(--red);border-color:#5a2129;}
+  .card-chart{height:230px;}
+  .card-rsi{height:70px;border-top:1px solid var(--border-soft);}
+  .card-body{padding:11px 13px;font-family:var(--mono);font-size:11px;color:var(--dim);}
+  .kv{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-bottom:7px;}
+  .kv div span.k{color:var(--dimmer);}
+  .kv div span.v{color:var(--text);}
+  .fibrow{display:flex;justify-content:space-between;padding:5px 0;border-top:1px dashed var(--border);margin-top:4px;}
+  .signalline{margin-top:7px;padding:8px 10px;border-radius:7px;background:#0d1621;border:1px solid #1c2c3f;color:#bcd6ee;font-size:11px;
+    transition:background .25s var(--ease), border-color .25s var(--ease), color .25s var(--ease);}
+  .signalline.buy{background:var(--green-soft);border-color:#194a2c;color:#a9e8c4;}
+  .signalline.sl{background:var(--red-soft);border-color:#4a1c1c;color:#f3a7a7;}
+
+  .empty{color:var(--dimmer);font-family:var(--mono);font-size:12px;padding:26px;text-align:center;animation:fadeIn .3s var(--ease) both;}
+
+  .overlay-layer{position:absolute;inset:0;pointer-events:none;z-index:2;}
+  .vline{position:absolute;top:0;border-left:1px dashed;opacity:.75;}
+  .vline-label{position:absolute;top:2px;left:3px;font-family:var(--mono);font-size:9.5px;padding:1px 4px;border-radius:3px;background:#0a0d13cc;white-space:nowrap;}
+  .fib-zone{position:absolute;left:0;right:0;background:rgba(62,166,255,.08);border-top:1px solid rgba(62,166,255,.35);border-bottom:1px solid rgba(62,166,255,.35);display:none;}
+
+  footer{text-align:center;color:var(--dimmer);font-family:var(--mono);font-size:10.5px;padding:20px;}
+  a{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="dot" id="liveDot"></span>
+    <div>
+      <b>R1·M1·M2·T STRATEGY SCANNER</b>
+      <small>Bybit USDT Perpetual · Selected signal timeframe / 4H confirm</small>
+    </div>
+  </div>
+
+  <input type="text" id="symbolInput" placeholder="BTCUSDT" />
+  <button id="loadBtn">Load</button>
+
+  <select id="scanModeSelect">
+    <option value="all">All Coins</option>
+    <option value="topn">Top N Coins</option>
+  </select>
+  <input type="number" id="topNInput" min="5" max="600" step="5" value="300" />
+
+  <select id="strategyMethod" title="Strategy Method" style="display:none;">
+    <option value="3" selected>Method 3 — M1/M2 Close Distance</option>
+  </select>
+
+  <button id="scanBtn" class="primary">Scan Now</button>
+
+  <label class="toggle"><input type="checkbox" id="autoRefreshToggle"/> Auto-refresh (60s)</label>
+
+  <button id="settingsBtn" title="Settings">⚙ Settings</button>
+  <label style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--dim);">TF
+    <select id="signalTfSelect" title="Signal / analysis timeframe">
+      <option value="5m">5m</option>
+      <option value="15m" selected>15m</option>
+      <option value="30m">30m</option>
+      <option value="1h">1h</option>
+      <option value="2h">2h</option>
+      <option value="3h">3h</option>
+    </select>
+  </label>
+
+  <input type="text" id="filterInput" placeholder="Filter watchlist…" />
+
+  <div class="spacer"></div>
+  <div class="status-line" id="statusLine">Idle</div>
+</header>
+<div id="progressWrap"><div id="progressBar"></div></div>
+
+<main>
+
+  <section class="panel">
+    <div class="panel-title">
+      <h2 id="focusedTitle">Focused Chart</h2>
+      <span class="meta" id="focusedMeta">15m · EMA50/100/200 · RSI14 · 4H confirm</span>
+    </div>
+    <div id="focusedChart"></div>
+    <div id="focusedRsi"></div>
+    <div id="focusedInfo">Load a symbol or click a watchlist card to inspect its R1 → M1 → M2 → T → Fib sequence.</div>
+  </section>
+
+  <section class="panel" id="settingsPanel" style="display:none;">
+    <div class="panel-title">
+      <h2>⚙ Settings</h2>
+      <span class="meta" id="settingsMeta">Method 3 configuration</span>
+    </div>
+    <div style="padding:4px 0 8px;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:12px;font-weight:600;">
+        Method 3 — M1/M2 Close Distance
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--dim);">Analysis / Signal Timeframe</span>
+        <select id="signalTfSettings" style="font-family:var(--mono);font-size:13px;padding:9px 12px;border-radius:8px;">
+          <option value="5m">5 minutes</option>
+          <option value="15m">15 minutes</option>
+          <option value="30m">30 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="2h">2 hours</option>
+          <option value="3h">3 hours</option>
+        </select>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--dimmer);">R1/M1/M2/T/100T/Fib use this timeframe</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--dim);">Maximum M1 → M2 Distance</span>
+        <input
+          type="text"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          id="m3MaxDistance"
+          value="30"
+          placeholder="30"
+          style="width:90px;font-size:16px;padding:9px 12px;border-radius:8px;text-align:center;"
+        />
+        <span style="font-family:var(--mono);font-size:13px;color:var(--dimmer);">candles</span>
+        <span id="m3ValidationMsg" style="font-family:var(--mono);font-size:12px;color:var(--red);"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+        <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--dim);">
+          <input type="checkbox" id="m3Require4hT" />
+          Require 4H EMA50 touch for T
+        </label>
+        <span id="m3TValidationMsg" style="font-family:var(--mono);font-size:12px;color:var(--green);"></span>
+      </div>
+      <div style="color:var(--dimmer);font-size:11px;font-family:var(--mono);margin-top:10px;line-height:1.7;">
+        Tap the field and type any whole number between 1 and 150.<br/>
+        Setups where (M2 − M1) candle distance exceeds this value are rejected immediately.<br/>
+        <b style="color:var(--dim);">When enabled:</b> T requires the exact 4H candle covering the 15m EMA200-touch timestamp to contain 4H EMA50.<br/>
+        <b style="color:var(--dim);">When disabled:</b> the valid 15m EMA200 touch is still accepted as T even if the covering 4H candle does not touch EMA50.<br/>
+        Your settings are saved and restored after page refresh.
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div id="watchlistHead">
+      <h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:0;font-weight:600;">
+        Confirmed Watchlist
+      </h2>
+      <span class="meta" id="watchlistMeta" style="font-family:var(--mono);font-size:11px;color:var(--dimmer);">0 signals</span>
+    </div>
+    <div id="cards"><div class="empty">No confirmed setups yet. Run “Scan Now” — only fully confirmed R1→M1→M2→T→4H setups appear here.</div></div>
+  </section>
+
+</main>
+
+<footer>Data: Bybit Linear Perpetual (via Cloudflare Worker proxy) · No API key required · Not financial advice.</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================== CONFIG ============================== */
+// ★ Replace with your Cloudflare Worker URL
+const FAPI = 'https://YOUR-WORKER.workers.dev';
+let SIGNAL_TF = localStorage.getItem('signalTf') || '15m';
+const SIGNAL_TF_OPTIONS = ['5m','15m','30m','1h','2h','3h'];
+const CONFIRM_TF = '4h';
+const DEEP_LIMIT = 1000;      // deep history candles for EMA seed accuracy
+const CONFIRM_LIMIT = 400;
+const EMA_FAST = 50, EMA_MID = 100, EMA_SLOW = 200;
+const RSI_PERIOD = 14;
+const RSI_OB = 70;
+const M1_M2_MAX_BARS = 150;
+const FIB_LEVELS = { entryHigh: 0.5, entryLow: 0.382, sl: 0.618 };
+const SCAN_CONCURRENCY = 6;
+const AUTO_REFRESH_MS = 60000;
+
+function setSignalTimeframe(tf){
+  if(!SIGNAL_TF_OPTIONS.includes(tf)) tf='15m';
+  SIGNAL_TF=tf;
+  localStorage.setItem('signalTf', tf);
+  if(typeof signalTfSelect !== 'undefined' && signalTfSelect) signalTfSelect.value=tf;
+  if(typeof signalTfSettings !== 'undefined' && signalTfSettings) signalTfSettings.value=tf;
+  if(typeof focusedMeta !== 'undefined' && focusedMeta) focusedMeta.textContent = tf + ' · EMA50/100/200 · RSI14 · 4H confirm';
+}
+
+/* ============================== METHOD 3 CONFIG ============================== */
+const M3_DEFAULT_MAX_DISTANCE = 5;
+const M3_DEFAULT_REQUIRE_4H_T = false;
+const M3_MIN = 1;
+const M3_MAX = 150; // hard cap — never tighter than the existing 150-bar rule
+
+function m3GetMaxDistance(){
+  const raw = m3MaxDistanceInput ? String(m3MaxDistanceInput.value).trim() : '';
+  const n = parseInt(raw, 10);
+  if(!Number.isInteger(n) || n < M3_MIN || n > M3_MAX) return M3_DEFAULT_MAX_DISTANCE;
+  return n;
+}
+
+function m3ValidateInput(val){
+  const s = String(val).trim();
+  if(s === '') return 'Enter a whole number (1–150).';
+  if(!/^\d+$/.test(s)) return 'Numbers only — no letters or decimals.';
+  const n = parseInt(s, 10);
+  if(n < M3_MIN) return `Minimum is ${M3_MIN} candle.`;
+  if(n > M3_MAX) return `Maximum is ${M3_MAX} candles.`;
+  return null; // valid
+}
+const state = {
+  scanning: false,
+  autoRefresh: false,
+  autoTimer: null,
+  symbolsCache: null,
+  confirmedSignals: new Map(),   // symbol -> signal object
+  candidates: new Map(),         // symbol -> internal stage info (NOT rendered)
+  focusedChart: null,
+  focusedRsiChart: null,
+  focusedOverlayHandle: null,
+  focusedSeries: null,
+  cardCharts: new Map(),         // symbol -> {chart, rsiChart, overlayHandle}
+};
+
+/* ============================== DOM ============================== */
+const $ = id => document.getElementById(id);
+const symbolInput = $('symbolInput');
+const loadBtn = $('loadBtn');
+const scanBtn = $('scanBtn');
+const autoRefreshToggle = $('autoRefreshToggle');
+const filterInput = $('filterInput');
+const scanModeSelect = $('scanModeSelect');
+const topNInput = $('topNInput');
+const strategyMethod = $('strategyMethod');
+const settingsBtn = $('settingsBtn');
+const settingsPanel = $('settingsPanel');
+const signalTfSelect = $('signalTfSelect');
+const signalTfSettings = $('signalTfSettings');
+const m3MaxDistanceInput = $('m3MaxDistance');
+const m3ValidationMsg = $('m3ValidationMsg');
+const m3Require4hT = $('m3Require4hT');
+const m3TValidationMsg = $('m3TValidationMsg');
+const statusLine = $('statusLine');
+const progressBar = $('progressBar');
+const cardsEl = $('cards');
+const watchlistMeta = $('watchlistMeta');
+const focusedTitle = $('focusedTitle');
+const focusedInfo = $('focusedInfo');
+const liveDot = $('liveDot');
+
+/* ============================== FETCH HELPERS (Bybit via CF Worker) ============================== */
+const INTERVAL_MAP = {
+  '5m': '5', '15m': '15', '30m': '30',
+  '1h': '60', '2h': '120', '3h': '120', '4h': '240'
+};
+
+async function fetchJSON(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP ' + res.status + ' for ' + url);
+  return res.json();
+}
+
+async function fetchPerpetualSymbols(){
+  if(state.symbolsCache) return state.symbolsCache;
+  let symbols = [];
+  let cursor = '';
+  do {
+    let url = FAPI + '/v5/market/instruments-info?category=linear&limit=1000';
+    if(cursor) url += '&cursor=' + encodeURIComponent(cursor);
+    const data = await fetchJSON(url);
+    if(!data || data.retCode !== 0 || !data.result || !Array.isArray(data.result.list)){
+      throw new Error('instruments-info failed: ' + (data && data.retMsg));
+    }
+    const page = data.result.list
+      .filter(s => s.contractType === 'LinearPerpetual' && s.quoteCoin === 'USDT' && s.status === 'Trading')
+      .map(s => s.symbol);
+    symbols = symbols.concat(page);
+    cursor = data.result.nextPageCursor || '';
+  } while(cursor);
+  symbols = [...new Set(symbols)].sort();
+  state.symbolsCache = symbols;
+  return symbols;
+}
+
+async function fetchTopNPerpetualSymbols(n){
+  const eligible = new Set(await fetchPerpetualSymbols());
+  // Bybit tickers endpoint
+  const data = await fetchJSON(FAPI + '/v5/market/tickers?category=linear');
+  if(!data || data.retCode !== 0 || !data.result || !Array.isArray(data.result.list)){
+    // fallback: just return first N symbols
+    return (await fetchPerpetualSymbols()).slice(0, n);
+  }
+  const ranked = data.result.list
+    .filter(t => eligible.has(t.symbol))
+    .map(t => ({symbol: t.symbol, quoteVolume: +(t.turnover24h || t.volume24h || 0)}))
+    .sort((a,b) => b.quoteVolume - a.quoteVolume)
+    .slice(0, n)
+    .map(t => t.symbol);
+  return ranked;
+}
+
+async function fetchKlinesDeep(symbol, interval, limit){
+  const bybitInterval = INTERVAL_MAP[interval] || '15';
+  const url = `${FAPI}/v5/market/kline?category=linear&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`;
+  const raw = await fetchJSON(url);
+  if(!raw || raw.retCode !== 0 || !raw.result || !Array.isArray(raw.result.list)){
+    throw new Error('kline failed: ' + (raw && raw.retMsg));
+  }
+  // Bybit returns newest first → reverse to oldest first
+  const list = raw.result.list.slice().reverse();
+  const minutes = parseInt(bybitInterval, 10) || 15;
+  return list.map(k => {
+    const openTime = parseInt(k[0], 10);
+    return {
+      openTime,
+      open: +k[1], high: +k[2], low: +k[3], close: +k[4],
+      volume: +k[5],
+      closeTime: openTime + minutes * 60 * 1000,
+    };
+  });
+}
+
+function isCandleClosed(c){ return c.closeTime < Date.now(); }
+
+/* ============================== INDICATORS ============================== */
+// EMA with SMA seed. Deep history (DEEP_LIMIT candles) minimizes seed error
+// long before the region we actually analyze.
+function calcEMA(values, period){
+  const out = new Array(values.length).fill(null);
+  if(values.length < period) return out;
+  const k = 2 / (period + 1);
+  let sum = 0;
+  for(let i=0;i<period;i++) sum += values[i];
+  out[period-1] = sum / period;
+  for(let i=period;i<values.length;i++){
+    out[i] = values[i]*k + out[i-1]*(1-k);
+  }
+  return out;
+}
+
+// Wilder's RSI (existing-style calculation, preserved)
+function calcRSI(closes, period){
+  const out = new Array(closes.length).fill(null);
+  if(closes.length <= period) return out;
+  let gain=0, loss=0;
+  for(let i=1;i<=period;i++){
+    const d = closes[i]-closes[i-1];
+    if(d>=0) gain+=d; else loss-=d;
+  }
+  let avgGain = gain/period, avgLoss = loss/period;
+  out[period] = avgLoss===0 ? 100 : 100 - 100/(1+avgGain/avgLoss);
+  for(let i=period+1;i<closes.length;i++){
+    const d = closes[i]-closes[i-1];
+    const g = d>0?d:0, l = d<0?-d:0;
+    avgGain = (avgGain*(period-1)+g)/period;
+    avgLoss = (avgLoss*(period-1)+l)/period;
+    out[i] = avgLoss===0 ? 100 : 100 - 100/(1+avgGain/avgLoss);
+  }
+  return out;
+}
+
+function findCrosses(fast, slow){
+  const crosses = [];
+  for(let i=1;i<fast.length;i++){
+    if(fast[i-1]==null||slow[i-1]==null||fast[i]==null||slow[i]==null) continue;
+    const pd = fast[i-1]-slow[i-1];
+    const cd = fast[i]-slow[i];
+    if(pd===0) continue;
+    if((pd<0&&cd>0)||(pd>0&&cd<0)){
+      crosses.push({index:i, dir: cd>0?'bull':'bear'});
+    }
+  }
+  return crosses;
+}
+
+/* ============================== STRATEGY PIPELINE ============================== */
+// Staged, cheap-first evaluation. Returns an object describing how far the
+// most recent EMA50xEMA200 cross candidate progressed. Only 'confirmed'
+// results (added elsewhere after the 4H check) should ever be rendered
+// as watchlist cards — everything else stays purely internal (state.candidates).
+function buildCandidate15m(symbol, candles){
+  const closes = candles.map(c=>c.close);
+  const ema50  = calcEMA(closes, EMA_FAST);
+  const ema100 = calcEMA(closes, EMA_MID);
+  const ema200 = calcEMA(closes, EMA_SLOW);
+  const rsi    = calcRSI(closes, RSI_PERIOD);
+
+  const ind = {ema50, ema100, ema200, rsi};
+
+  // --- M1: most recent EMA50 x EMA200 cross on a closed candle ---
+  const m1Crosses = findCrosses(ema50, ema200).filter(c => isCandleClosed(candles[c.index]));
+  if(m1Crosses.length === 0) return {stage:'no_m1', symbol};
+  const m1Index = m1Crosses[m1Crosses.length-1].index;
+
+  // --- R1: latest RSI > 70 strictly before M1 ---
+  let r1Index = -1;
+  for(let i=m1Index-1;i>=0;i--){
+    if(rsi[i]!=null && rsi[i] > RSI_OB){ r1Index = i; break; }
+  }
+  if(r1Index === -1) return {stage:'no_r1', symbol, m1Index, ind, candles};
+
+  // --- M2: next EMA200 x EMA100 cross after M1, <=150 bars, no EMA50xEMA200 cross in between ---
+  let m2Index = -1;
+  for(let i=m1Index+1; i<=Math.min(m1Index+M1_M2_MAX_BARS, candles.length-1); i++){
+    const pdA = ema50[i-1]-ema200[i-1], cdA = ema50[i]-ema200[i];
+    if(ema50[i-1]!=null&&ema200[i-1]!=null&&ema50[i]!=null&&ema200[i]!=null && pdA!==0 && ((pdA<0&&cdA>0)||(pdA>0&&cdA<0))){
+      return {stage:'invalidated', symbol, r1Index, m1Index, ind, candles};
+    }
+    const pdB = ema200[i-1]-ema100[i-1], cdB = ema200[i]-ema100[i];
+    if(ema200[i-1]!=null&&ema100[i-1]!=null&&ema200[i]!=null&&ema100[i]!=null && pdB!==0 && ((pdB<0&&cdB>0)||(pdB>0&&cdB<0))){
+      m2Index = i; break;
+    }
+  }
+  if(m2Index === -1) return {stage:'no_m2', symbol, r1Index, m1Index, ind, candles};
+
+  // --- Method 3 early filter: reject if M1→M2 distance exceeds user setting ---
+  // This runs before T search / 4H / Fib to avoid wasted computation.
+  // Only active when the user has selected Method 3. Method 1 and 2 are untouched.
+  const _selMethod = (typeof strategyMethod !== 'undefined' && strategyMethod) ? strategyMethod.value : '1';
+  if(_selMethod === '3'){
+    const m1m2dist = m2Index - m1Index;
+    const m3max = m3GetMaxDistance();
+    if(m1m2dist > m3max){
+      return {stage:'m3_distance_fail', symbol, r1Index, m1Index, m2Index, ind, candles,
+              m3Distance: m1m2dist, m3Max: m3max};
+    }
+  }
+
+  // --- T: first CLOSED 15m candle after M2 with EMA200 touch, BELOW-200/ASCENDING only ---
+  let tIndex = -1;
+  for(let i=m2Index+1;i<candles.length;i++){
+    if(!isCandleClosed(candles[i])) break; // never use the still-forming candle
+    if(ema200[i]==null || ema200[i-1]==null) continue;
+    const touches = candles[i].low <= ema200[i] && candles[i].high >= ema200[i];
+    if(!touches) continue;
+    const ascending = candles[i-1].close < ema200[i-1]; // was below EMA200 -> moving up into it
+    if(ascending){ tIndex = i; break; }
+    // a descending touch is explicitly rejected/hidden — keep searching forward
+  }
+  if(tIndex === -1) return {stage:'no_t', symbol, r1Index, m1Index, m2Index, ind, candles};
+
+  return {stage:'has_t', symbol, r1Index, m1Index, m2Index, tIndex, ind, candles};
+}
+
+async function confirm4h(symbol, tTimeMs){
+  const candles4h = await fetchKlinesDeep(symbol, CONFIRM_TF, CONFIRM_LIMIT);
+  const ema50_4h = calcEMA(candles4h.map(c=>c.close), EMA_FAST);
+  for(let i=0;i<candles4h.length;i++){
+    const c = candles4h[i];
+    if(tTimeMs >= c.openTime && tTimeMs < c.closeTime){
+      if(ema50_4h[i]==null) return {ok:false, candles4h};
+      const ok = c.low <= ema50_4h[i] && c.high >= ema50_4h[i];
+      return {ok, candle:c, ema:ema50_4h[i], index:i, candles4h};
+    }
+  }
+  return {ok:false, candles4h};
+}
+
+function computeFib(candles, r1Index, m1Index, tIndex){
+  let price1 = -Infinity, price1Idx = r1Index;
+  for(let i=r1Index;i<=m1Index;i++){
+    if(candles[i].high > price1){ price1 = candles[i].high; price1Idx = i; }
+  }
+  let price2 = Infinity, price2Idx = r1Index;
+  for(let i=r1Index;i<=tIndex;i++){
+    if(candles[i].low < price2){ price2 = candles[i].low; price2Idx = i; }
+  }
+  const range = price1 - price2;
+  return {
+    price1, price1Idx, price2, price2Idx,
+    fib50:  price1 - range*FIB_LEVELS.entryHigh,
+    fib618: price1 - range*FIB_LEVELS.entryLow,
+    fib786: price1 - range*FIB_LEVELS.sl,
+  };
+}
+
+function computeMethod3Fib(candles, p2Index, m1Index, m2Index, hundredTIndex){
+  // METHOD 3 RULE:
+  // 1) 100T must already exist after M2.
+  // 2) Find the HIGHEST HIGH from P2 → 100T inclusive.
+  // 3) That highest-high candle MUST be inside the M1 → M2 → 100T
+  //    section (i.e. its candle index must be >= M1 and <= 100T).
+  // 4) The previous requirement that P2→100T high must equal
+  //    M2→100T high is REMOVED.
+  if(p2Index < 0 || m1Index < 0 || m2Index < 0 || hundredTIndex <= m2Index) return null;
+  if(!(p2Index < m1Index && m1Index < m2Index && m2Index < hundredTIndex)) return null;
+
+  const p2Price = candles[p2Index].low;
+  let fibHigh = -Infinity, fibHighIdx = -1;
+
+  // Search the full P2 → 100T range for the actual highest HIGH.
+  for(let i=p2Index;i<=hundredTIndex;i++){
+    if(candles[i].high > fibHigh){
+      fibHigh = candles[i].high;
+      fibHighIdx = i;
+    }
+  }
+
+  // The selected highest-high candle must be between M1 and 100T.
+  // If the P2→100T highest high occurred before M1, reject the setup.
+  if(fibHighIdx < m1Index || fibHighIdx > hundredTIndex) return null;
+  if(fibHigh <= p2Price) return null;
+
+  const range = fibHigh - p2Price;
+  return {
+    price1:p2Price, price1Idx:p2Index,
+    price2:fibHigh, price2Idx:fibHighIdx,
+    anchorLabel1:'P2',
+    anchorLabel2:'P2 → 100T Highest High (must be within M1 → 100T)',
+    fib50:fibHigh-range*0.5,
+    fib618:fibHigh-range*0.618,
+    fib786:fibHigh-range*0.786,
+    hundredTIndex,
+    highSearchStartIndex:p2Index,
+    highSearchEndIndex:hundredTIndex,
+    fibHighIdx,
+  };
+}
+
+function findFirstEMA100TouchAfterM2(candles, ema100, m2Index){
+  for(let i=m2Index+1;i<candles.length;i++){
+    if(!isCandleClosed(candles[i])) break;
+    if(ema100[i]==null) continue;
+    if(candles[i].low <= ema100[i] && candles[i].high >= ema100[i]) return i;
+  }
+  return -1;
+}
+
+function computeEntryAndSL(candles, tIndex, fib){
+  let entryIndex = -1;
+  for(let i=tIndex+1;i<candles.length;i++){
+    if(!isCandleClosed(candles[i])) break;
+    if(candles[i].low <= fib.fib50 && candles[i].high >= fib.fib50){ entryIndex = i; break; }
+  }
+  if(entryIndex === -1) return {entryIndex:-1, slIndex:-1};
+  let slIndex = -1;
+  for(let i=entryIndex+1;i<candles.length;i++){
+    if(!isCandleClosed(candles[i])) break;
+    if(candles[i].low <= fib.fib786){ slIndex = i; break; }
+  }
+  return {entryIndex, slIndex};
+}
+
+// Full staged pipeline for one symbol. Cheap stages run first; expensive
+// Fibonacci / 4H fetch / card rendering only happen for fully-formed T candidates.
+async function processSymbol(symbol){
+  const candles = await fetchKlinesDeep(symbol, SIGNAL_TF, DEEP_LIMIT);
+  if(candles.length < EMA_SLOW + 20) { state.candidates.set(symbol, {stage:'insufficient_data'}); return null; }
+
+  const cand = buildCandidate15m(symbol, candles);
+  if(cand.stage !== 'has_t'){
+    state.candidates.set(symbol, cand); // internal tracking only — never rendered
+    return null;
+  }
+
+  const tTimeMs = candles[cand.tIndex].openTime;
+  const selectedMethod = strategyMethod ? strategyMethod.value : '1';
+  // Method 3 can optionally accept a valid 15m EMA200 touch as T even when
+  // the covering 4H candle does not touch 4H EMA50. Default remains strict.
+  const require4hForM3T = selectedMethod === '3' ? m3GetRequire4hT() : true;
+  const conf = await confirm4h(symbol, tTimeMs);
+  if(!conf.ok && !(selectedMethod === '3' && !require4hForM3T)){
+    state.candidates.set(symbol, {...cand, stage:'no_4h_confirm'});
+    return null;
+  }
+
+  const fib = computeFib(candles, cand.r1Index, cand.m1Index, cand.tIndex);
+
+  // Mandatory filter: the entire Fib Entry Zone (0.382/0.618 depending on
+  // labeling convention -> 0.5) must sit above EMA200 (evaluated at T). Runs after Fibonacci, before any card/watchlist work.
+  const ema200AtT = cand.ind.ema200[cand.tIndex];
+  if(ema200AtT == null || !(fib.fib618 > ema200AtT)){
+    state.candidates.set(symbol, {...cand, stage:'entry_zone_below_ema200', fib, ema200AtT});
+    return null;
+  }
+
+  const {entryIndex, slIndex} = computeEntryAndSL(candles, cand.tIndex, fib);
+
+  // Method 3 distance (already filtered early in buildCandidate15m; store for display)
+  const m3Distance = cand.m2Index - cand.m1Index;
+  const m3Max = m3GetMaxDistance();
+
+  // Method 3 UPDATED SECOND-STAGE FILTER:
+  // After the existing M1→M2 distance filter, require the chronological
+  // P1→P2→M1→M2 structure, then find the FIRST 15m EMA100 touch after M2.
+  // P1/P2 come from the existing base Fibonacci anchors; this keeps Method 1/2 intact.
+  let m3Fib = null, m3_100TIndex = -1;
+  if(selectedMethod === '3'){
+    const p1Index = fib.price1Idx;
+    const p2Index = fib.price2Idx;
+    if(!(p1Index < p2Index && p2Index < cand.m1Index && cand.m1Index < cand.m2Index)){
+      state.candidates.set(symbol, {...cand, stage:'m3_structure_fail', fib, ema200AtT, m3Distance:m3Distance, m3Max:m3Max});
+      return null;
+    }
+
+    m3_100TIndex = findFirstEMA100TouchAfterM2(candles, cand.ind.ema100, cand.m2Index);
+    if(m3_100TIndex < 0){
+      state.candidates.set(symbol, {...cand, stage:'m3_no_100t', fib, ema200AtT, m3Distance:m3Distance, m3Max:m3Max});
+      return null;
+    }
+
+    m3Fib = computeMethod3Fib(candles, p2Index, cand.m1Index, cand.m2Index, m3_100TIndex);
+    if(!m3Fib){
+      state.candidates.set(symbol, {...cand, stage:'m3_no_fib', fib, ema200AtT, m3Distance:m3Distance, m3Max:m3Max});
+      return null;
+    }
+  }
+
+  const signal = {
+    symbol, candles, ind: cand.ind,
+    r1Index: cand.r1Index, m1Index: cand.m1Index, m2Index: cand.m2Index, tIndex: cand.tIndex,
+    fib, entryIndex, slIndex,
+    confirm4h: conf, ema200AtT,
+    m3Require4hT: selectedMethod === '3' ? require4hForM3T : true,
+    method: selectedMethod,
+    signalTimeframe: SIGNAL_TF,
+    m3Distance, m3Max,
+    m3Fib,
+    m3_100TIndex,
+    displayFib: selectedMethod === '3' && m3Fib ? m3Fib : fib,
+    updatedAt: Date.now(),
+  };
+  state.candidates.set(symbol, {stage:'confirmed'});
+  state.confirmedSignals.set(symbol, signal);
+  return signal;
+}
+
+function calcProfitFromFib50(entryPrice, currentPrice){
+  if(entryPrice == null || currentPrice == null || !isFinite(entryPrice) || !isFinite(currentPrice) || entryPrice === 0) return null;
+  return ((currentPrice - entryPrice) / entryPrice) * 100;
+}
+
+function fmtPrice(p){
+  if(p==null || !isFinite(p)) return '—';
+  const abs = Math.abs(p);
+  const dec = abs >= 1000 ? 2 : abs >= 1 ? 4 : abs >= 0.01 ? 6 : 8;
+  return p.toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function fmtTime(ms){
+  if(ms==null) return '—';
+  const d = new Date(ms);
+  return d.toLocaleString('en-US', {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:true});
+}
+
+/* ============================== CHART RENDERING ============================== */
+function toChartTime(ms){ return Math.floor(ms/1000); }
+
+function buildChart(container, {rsi=false} = {}){
+  const chart = LightweightCharts.createChart(container, {
+    layout: { background:{color:'transparent'}, textColor:'#8892a4', fontFamily:'JetBrains Mono, monospace', fontSize:10 },
+    grid: { vertLines:{color:'#161c27'}, horzLines:{color:'#161c27'} },
+    rightPriceScale: { borderColor:'#232a38' },
+    timeScale: { borderColor:'#232a38', timeVisible:true, secondsVisible:false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    handleScroll: !rsi ? true : {vertTouchDrag:false},
+    handleScale: !rsi,
+    autoSize: true,
+  });
+  return chart;
+}
+
+function renderCandleChart(chart, candles){
+  const series = chart.addCandlestickSeries({
+    upColor:'#22c07a', downColor:'#f0525b', borderVisible:false,
+    wickUpColor:'#22c07a', wickDownColor:'#f0525b',
+  });
+  series.setData(candles.map(c => ({time:toChartTime(c.openTime), open:c.open, high:c.high, low:c.low, close:c.close})));
+  return series;
+}
+
+function addEmaLines(chart, candles, ind){
+  const mk = (arr, color, title) => {
+    const s = chart.addLineSeries({color, lineWidth:1, priceLineVisible:false, lastValueVisible:false, title});
+    s.setData(candles.map((c,i)=> arr[i]==null ? null : {time:toChartTime(c.openTime), value:arr[i]}).filter(Boolean));
+    return s;
+  };
+  mk(ind.ema50, '#3ea6ff', 'EMA50');
+  mk(ind.ema100, '#f0b429', 'EMA100');
+  mk(ind.ema200, '#a78bfa', 'EMA200');
+}
+
+function renderRsiChart(chart, candles, rsi){
+  const s = chart.addLineSeries({color:'#e6ebf2', lineWidth:1, priceLineVisible:false, lastValueVisible:true});
+  s.setData(candles.map((c,i)=> rsi[i]==null ? null : {time:toChartTime(c.openTime), value:rsi[i]}).filter(Boolean));
+  s.createPriceLine({price:70, color:'#f0525b', lineStyle:LightweightCharts.LineStyle.Dashed, lineWidth:1, axisLabelVisible:true, title:'70'});
+  s.createPriceLine({price:30, color:'#22c07a', lineStyle:LightweightCharts.LineStyle.Dashed, lineWidth:1, axisLabelVisible:true, title:'30'});
+  return s;
+}
+
+function syncTimeScales(main, follower){
+  main.timeScale().subscribeVisibleLogicalRangeChange(range=>{
+    if(range) follower.timeScale().setVisibleLogicalRange(range);
+  });
+}
+
+// Draws R1 / M1 / T vertical reference lines + Fib horizontal levels + entry
+// zone shading + markers on top of a rendered candle series/chart.
+function attachOverlays(chart, series, container, signal){
+  const {candles, r1Index, m1Index, m2Index, tIndex, entryIndex, slIndex} = signal;
+  const fib = signal.displayFib || signal.fib;
+
+  const layer = document.createElement('div');
+  layer.className = 'overlay-layer';
+  container.style.position = 'relative';
+  container.appendChild(layer);
+
+  function vline(ms, label, color){
+    const el = document.createElement('div');
+    el.className = 'vline';
+    el.style.borderColor = color;
+    const lbl = document.createElement('span');
+    lbl.className = 'vline-label';
+    lbl.textContent = label;
+    lbl.style.color = color;
+    lbl.style.borderLeft = '1px solid ' + color;
+    el.appendChild(lbl);
+    layer.appendChild(el);
+    return {el, time: toChartTime(ms)};
+  }
+
+  const vlines = [
+    vline(candles[r1Index].openTime, 'R1', '#f0b429'),
+    vline(candles[m1Index].openTime, 'M1', '#3ea6ff'),
+    vline(candles[tIndex].openTime,  'T',  '#a78bfa'),
+  ];
+  if(signal.method === '3'){
+    if(signal.fib && signal.fib.price1Idx != null){
+      vlines.push(vline(candles[signal.fib.price1Idx].openTime, 'P1', '#f0b429'));
+    }
+    if(signal.fib && signal.fib.price2Idx != null){
+      vlines.push(vline(candles[signal.fib.price2Idx].openTime, 'P2', '#22c07a'));
+    }
+    if(signal.m3_100TIndex >= 0){
+      vlines.push(vline(candles[signal.m3_100TIndex].openTime, '100T', '#22c07a'));
+    }
+  }
+
+  const zoneEl = document.createElement('div');
+  zoneEl.className = 'fib-zone';
+  layer.appendChild(zoneEl);
+
+  function reposition(){
+    const h = container.clientHeight;
+    vlines.forEach(v=>{
+      const x = chart.timeScale().timeToCoordinate(v.time);
+      if(x===null){ v.el.style.display='none'; return; }
+      v.el.style.display='block';
+      v.el.style.left = x+'px';
+      v.el.style.height = h+'px';
+    });
+    const y50 = series.priceToCoordinate(fib.fib50);
+    const yZone = series.priceToCoordinate(signal.method === '3' ? fib.fib786 : fib.fib618);
+    if(y50!=null && yZone!=null){
+      zoneEl.style.display='block';
+      zoneEl.style.top = Math.min(y50,yZone)+'px';
+      zoneEl.style.height = Math.abs(yZone-y50)+'px';
+    } else {
+      zoneEl.style.display='none';
+    }
+  }
+
+  const unsub = () => chart.timeScale().unsubscribeVisibleTimeRangeChange(reposition);
+  chart.timeScale().subscribeVisibleTimeRangeChange(reposition);
+  const ro = new ResizeObserver(reposition);
+  ro.observe(container);
+  setTimeout(reposition, 60);
+
+  // Horizontal Fib levels — native price lines, aligned to real prices
+  series.createPriceLine({price:fib.fib50,  color:'#3ea6ff', lineWidth:1, lineStyle:LightweightCharts.LineStyle.Solid,  axisLabelVisible:true, title:'0.5 '+fmtPrice(fib.fib50)});
+  series.createPriceLine({price:fib.fib618, color:'#3ea6ff', lineWidth:1, lineStyle:LightweightCharts.LineStyle.Dotted, axisLabelVisible:true, title:(signal.method==='3'?'0.618 ':'0.382 ')+fmtPrice(fib.fib618)});
+  series.createPriceLine({price:fib.fib786, color:'#f0525b', lineWidth:1, lineStyle:LightweightCharts.LineStyle.Dashed, axisLabelVisible:true, title:(signal.method==='3'?'0.786 ':'SL 0.618 ')+fmtPrice(fib.fib786)});
+
+  // Markers: R1, M1, M2, T, Price1, Price2, Entry, SL
+  const markers = [
+    {time:toChartTime(candles[r1Index].openTime), position:'aboveBar', color:'#f0b429', shape:'circle', text:'R1'},
+    {time:toChartTime(candles[m1Index].openTime), position:'belowBar', color:'#3ea6ff', shape:'arrowUp', text:'M1'},
+    {time:toChartTime(candles[m2Index].openTime), position:'belowBar', color:'#38bdf8', shape:'arrowUp', text:'M2'},
+    {time:toChartTime(candles[tIndex].openTime),  position:'aboveBar', color:'#a78bfa', shape:'circle',  text:'T'},
+  ];
+  if(signal.method === '3'){
+    // Keep the original P1/P2 structure markers visible, while the Method 3
+    // Fibonacci itself is anchored from P2 to the P2→100T highest high.
+    if(signal.fib && signal.fib.price1Idx != null){
+      markers.push({time:toChartTime(candles[signal.fib.price1Idx].openTime), position:'aboveBar', color:'#f0b429', shape:'square', text:'P2 '+fmtPrice(signal.m3Fib ? signal.m3Fib.price1 : fib.price1)});
+    }
+    if(signal.m3Fib && signal.m3Fib.price2Idx != null){
+      markers.push({time:toChartTime(candles[signal.m3Fib.price2Idx].openTime), position:'aboveBar', color:'#22c07a', shape:'square', text:'100T High '+fmtPrice(signal.m3Fib.price2)});
+    }
+    if(signal.m3_100TIndex >= 0){
+      markers.push({time:toChartTime(candles[signal.m3_100TIndex].openTime), position:'aboveBar', color:'#22c07a', shape:'circle', text:'100T'});
+    }
+  } else {
+    markers.push({time:toChartTime(candles[fib.price1Idx].openTime), position:'aboveBar', color:'#f0b429', shape:'square', text:'P1 '+fmtPrice(fib.price1)});
+    markers.push({time:toChartTime(candles[fib.price2Idx].openTime), position:'belowBar', color:'#22c07a', shape:'square', text:'P2 '+fmtPrice(fib.price2)});
+  }
+  if(entryIndex>=0) markers.push({time:toChartTime(candles[entryIndex].openTime), position:'belowBar', color:'#22c07a', shape:'arrowUp', text:'BUY'});
+  if(slIndex>=0) markers.push({time:toChartTime(candles[slIndex].openTime), position:'aboveBar', color:'#f0525b', shape:'arrowDown', text:'SL'});
+  markers.sort((a,b)=>a.time-b.time);
+  series.setMarkers(markers);
+
+  return {destroy(){ unsub(); ro.disconnect(); layer.remove(); }};
+}
+
+/* ============================== FOCUSED CHART ============================== */
+function clearFocused(){
+  if(state.focusedOverlayHandle){ state.focusedOverlayHandle.destroy(); state.focusedOverlayHandle=null; }
+  if(state.focusedChart){ state.focusedChart.remove(); state.focusedChart=null; }
+  if(state.focusedRsiChart){ state.focusedRsiChart.remove(); state.focusedRsiChart=null; }
+  $('focusedChart').innerHTML='';
+  $('focusedRsi').innerHTML='';
+}
+
+async function loadFocused(symbolRaw){
+  const symbol = symbolRaw.trim().toUpperCase();
+  if(!symbol) return;
+  focusedTitle.textContent = symbol + ' — loading…';
+  focusedInfo.innerHTML = 'Fetching selected timeframe deep history and running the R1 → M1 → M2 → T pipeline…';
+  try{
+    let signal = state.confirmedSignals.get(symbol);
+    let cand, candles, ind;
+    if(signal){
+      candles = signal.candles; ind = signal.ind;
+    } else {
+      candles = await fetchKlinesDeep(symbol, SIGNAL_TF, DEEP_LIMIT);
+      cand = buildCandidate15m(symbol, candles);
+      ind = cand.ind || {ema50:calcEMA(candles.map(c=>c.close),EMA_FAST), ema100:calcEMA(candles.map(c=>c.close),EMA_MID), ema200:calcEMA(candles.map(c=>c.close),EMA_SLOW), rsi:calcRSI(candles.map(c=>c.close),RSI_PERIOD)};
+      if(cand.stage === 'has_t'){
+        const tTimeMs = candles[cand.tIndex].openTime;
+        const conf = await confirm4h(symbol, tTimeMs);
+        if(conf.ok){
+          const fib = computeFib(candles, cand.r1Index, cand.m1Index, cand.tIndex);
+          const ema200AtT = ind.ema200[cand.tIndex];
+          if(ema200AtT != null && fib.fib618 > ema200AtT){
+            const {entryIndex, slIndex} = computeEntryAndSL(candles, cand.tIndex, fib);
+            signal = {symbol, candles, ind, r1Index:cand.r1Index, m1Index:cand.m1Index, m2Index:cand.m2Index, tIndex:cand.tIndex, fib, entryIndex, slIndex, confirm4h:conf, ema200AtT};
+          } else {
+            cand = {...cand, stage:'entry_zone_below_ema200', fib, ema200AtT};
+          }
+        }
+      }
+    }
+
+    clearFocused();
+    const chart = buildChart($('focusedChart'));
+    const rsiChart = buildChart($('focusedRsi'), {rsi:true});
+    const series = renderCandleChart(chart, candles);
+    addEmaLines(chart, candles, ind);
+    renderRsiChart(rsiChart, candles, ind.rsi);
+    syncTimeScales(chart, rsiChart);
+    chart.timeScale().fitContent();
+
+    state.focusedChart = chart;
+    state.focusedRsiChart = rsiChart;
+    state.focusedSeries = series;
+
+    if(signal){
+      state.focusedOverlayHandle = attachOverlays(chart, series, $('focusedChart'), signal);
+      focusedTitle.textContent = symbol + ' — confirmed setup';
+      focusedInfo.innerHTML = buildInfoLine(signal, true);
+    } else {
+      focusedTitle.textContent = symbol + ' — no confirmed setup right now';
+      focusedInfo.innerHTML = buildStageLine(cand);
+    }
+  }catch(err){
+    focusedTitle.textContent = symbol + ' — error';
+    focusedInfo.textContent = 'Could not load: ' + err.message;
+  }
+}
+
+function buildStageLine(cand){
+  if(!cand) return 'No data.';
+  const map = {
+    no_m1:'No EMA50×EMA200 cross found in history yet — no M1 candidate.',
+    no_r1:'M1 found, but no RSI&gt;70 point before it — R1 missing, sequence invalid.',
+    invalidated:'M1 found, but another EMA50×EMA200 cross occurred before a valid M2 — setup invalidated.',
+    no_m2:'R1 → M1 valid, but no EMA200×EMA100 cross found within 150 bars — waiting for M2.',
+    no_t:'R1 → M1 → M2 valid, waiting for the first ascending (below-200) EMA200 touch on a closed 15m candle — T not yet formed.',
+    no_4h_confirm:'R1 → M1 → M2 → T complete, but the 4H candle covering T did not contain the 4H EMA50 — not confirmed.',
+    entry_zone_below_ema200:'R1 → M1 → M2 → T → 4H confirmed, but the Fib Entry Zone (0.382) is not above EMA200 — rejected.',
+    m3_distance_fail:'M1 → M2 detected, but M1/M2 candle distance exceeds the Method 3 maximum — rejected early.',
+    m3_structure_fail:'Method 3 rejected: P1 → P2 → M1 → M2 chronological structure is not valid.',
+    m3_no_100t:'Method 3 rejected: no valid first 15m EMA100 touch was found after M2 (100T).',
+    m3_no_fib:'Method 3 rejected: the P2 → 100T highest high did not occur within the M1 → 100T section, or the Fib range is invalid.',
+    insufficient_data:'Not enough candle history returned for this symbol.',
+  };
+  const stage = map[cand.stage] || 'Unknown stage.';
+  const cls = cand.stage==='no_t' || cand.stage==='no_4h_confirm' ? 'stage-mid'
+    : (cand.stage==='no_m1'||cand.stage==='entry_zone_below_ema200'||cand.stage==='m3_distance_fail') ? 'stage-none'
+    : 'stage-mid';
+  let extra = '';
+  if(cand.r1Index!=null) extra += `R1: ${fmtTime(cand.candles[cand.r1Index].openTime)}  `;
+  if(cand.m1Index!=null) extra += `M1: ${fmtTime(cand.candles[cand.m1Index].openTime)}  `;
+  if(cand.m2Index!=null) extra += `M2: ${fmtTime(cand.candles[cand.m2Index].openTime)}  `;
+  if(cand.m3Distance!=null) extra += `<br/>M1→M2 distance: ${cand.m3Distance} candles (max allowed: ${cand.m3Max})`;
+  if(cand.reason) extra += `<br/>Reason: ${cand.reason}`;
+  return `<span class="stage ${cls}">${cand.stage.replace(/_/g,' ')}</span><br/>${stage}<br/>${extra}`;
+}
+
+function buildInfoLine(sig, forFocused){
+  const {candles, r1Index, m1Index, m2Index, tIndex, fib, entryIndex, slIndex, confirm4h} = sig;
+  const entryText = entryIndex>=0
+    ? `<span class="stage stage-ok">BUY — Fib 0.5 Return/Rejection</span> at ${fmtTime(candles[entryIndex].openTime)} @ ${fmtPrice(fib.fib50)}`
+    : `<span class="stage stage-mid">waiting for return to 0.5</span>`;
+  const slText = slIndex>=0
+    ? `<span class="stage stage-none">SL HIT</span> at ${fmtTime(candles[slIndex].openTime)} @ ${fmtPrice(fib.fib786)}`
+    : (entryIndex>=0 ? 'SL: not hit' : 'SL: tracking starts after entry');
+  const m3Line = sig.method==='3'
+    ? `<br/><span class="stage stage-ok">METHOD 3 — M1/M2 CLOSE DISTANCE ✓</span> &nbsp; M1→M2: ${sig.m3Distance} candles &nbsp; (max: ${sig.m3Max})`
+    : '';
+  return `
+    R1: ${fmtTime(candles[r1Index].openTime)} &nbsp; M1: ${fmtTime(candles[m1Index].openTime)} &nbsp;
+    M2: ${fmtTime(candles[m2Index].openTime)} &nbsp; T: ${fmtTime(candles[tIndex].openTime)} &nbsp;
+    <span class="stage stage-ok">4H EMA50 confirmed</span> &nbsp;
+    <span class="stage stage-ok">Entry Zone above EMA200</span>${m3Line}<br/>
+    Price1 (R1→M1 high): ${fmtPrice(fib.price1)} &nbsp; Price2 (R1→T low): ${fmtPrice(fib.price2)}<br/>
+    Fib 0.5: ${fmtPrice(fib.fib50)} &nbsp; Fib 0.382: ${fmtPrice(fib.fib618)} &nbsp; Fib 0.618 (SL): ${fmtPrice(fib.fib786)}<br/>
+    Entry Zone (0.382–0.5): ${fmtPrice(fib.fib618)} – ${fmtPrice(fib.fib50)} &nbsp; (EMA200 @ T: ${fmtPrice(sig.ema200AtT)})<br/>
+    ${entryText}<br/>${slText}
+  `;
+}
+
+/* ============================== WATCHLIST CARDS ============================== */
+function cardStatus(sig){
+  if(sig.slIndex>=0) return {label:'SL HIT', cls:'sl'};
+  if(sig.entryIndex>=0) return {label:'BUY ENTERED', cls:'entered'};
+  return {label:'CONFIRMED · AWAITING ENTRY', cls:''};
+}
+
+function renderCard(signal){
+  const existingHandle = state.cardCharts.get(signal.symbol);
+  if(existingHandle){
+    existingHandle.overlayHandle && existingHandle.overlayHandle.destroy();
+    existingHandle.chart.remove();
+    existingHandle.rsiChart.remove();
+    const oldEl = document.getElementById('card-'+signal.symbol);
+    if(oldEl) oldEl.remove();
+  }
+
+  if(cardsEl.querySelector('.empty')) cardsEl.innerHTML = '';
+
+  const status = cardStatus(signal);
+  const isNew = !existingHandle;
+  const cardFib = signal.displayFib || signal.fib;
+  // Use the latest available closed candle as the current market price.
+  // Profit is measured from the Fib 0.5 entry price.
+  const currentPrice = signal.candles && signal.candles.length ? signal.candles[signal.candles.length - 1].close : null;
+  const profitPct = calcProfitFromFib50(cardFib.fib50, currentPrice);
+  const profitText = profitPct == null ? '—' : `${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`;
+  const profitColor = profitPct == null ? 'var(--muted)' : (profitPct >= 0 ? 'var(--green)' : 'var(--red)');
+  const card = document.createElement('div');
+  card.className = 'card' + (isNew ? ' card-enter' : '');
+  card.id = 'card-' + signal.symbol;
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="sym">${signal.symbol}</span>
+      <span class="badge ${status.cls}">${status.label}</span>
+    </div>
+    <div class="card-chart"></div>
+    <div class="card-rsi"></div>
+    <div class="card-body">
+      <div class="kv">
+        <div><span class="k">R1</span> <span class="v">${fmtTime(signal.candles[signal.r1Index].openTime)}</span></div>
+        <div><span class="k">M1</span> <span class="v">${fmtTime(signal.candles[signal.m1Index].openTime)}</span></div>
+        <div><span class="k">M2</span> <span class="v">${fmtTime(signal.candles[signal.m2Index].openTime)}</span></div>
+        <div><span class="k">T</span> <span class="v">${fmtTime(signal.candles[signal.tIndex].openTime)}</span></div>
+        <div><span class="k">Price 1</span> <span class="v">${fmtPrice(cardFib.price1)}</span></div>
+        <div><span class="k">Price 2</span> <span class="v">${fmtPrice(cardFib.price2)}</span></div>
+        <div><span class="k">EMA200 @ T</span> <span class="v">${fmtPrice(signal.ema200AtT)}</span></div>
+        <div><span class="k">Zone vs EMA200</span> <span class="v" style="color:var(--green);">Above ✓</span></div>
+      </div>
+      <div class="fibrow"><span>Fib 0.5 / Entry</span><span>${fmtPrice(cardFib.fib50)}</span></div>
+      <div class="fibrow"><span>Current Price</span><span>${fmtPrice(currentPrice)}</span></div>
+      <div class="fibrow"><span>Profit from Fib 0.5</span><span style="font-weight:800;color:${profitColor};">${profitText}</span></div>
+      <div class="fibrow"><span>Fib 0.382</span><span>${fmtPrice(cardFib.fib618)}</span></div>
+      <div class="fibrow"><span>Fib 0.618 (SL)</span><span>${fmtPrice(cardFib.fib786)}</span></div>
+      <div class="fibrow"><span>Entry Zone (0.382–0.5)</span><span>${fmtPrice(cardFib.fib618)} – ${fmtPrice(cardFib.fib50)}</span></div>
+      <div class="signalline ${signal.entryIndex>=0?'buy':''}">
+        ${signal.entryIndex>=0
+          ? 'BUY — Fib 0.5 Return/Rejection @ ' + fmtTime(signal.candles[signal.entryIndex].openTime)
+          : 'No entry yet — waiting for price to return to the 0.5 level'}
+      </div>
+      <div class="signalline ${signal.slIndex>=0?'sl':''}">
+        SL: ${signal.slIndex>=0 ? 'HIT @ ' + fmtTime(signal.candles[signal.slIndex].openTime) : 'Not hit'}
+      </div>
+      ${signal.method==='3' ? `
+      <div style="margin-top:8px;padding:8px 10px;border-radius:7px;background:#0f1d14;border:1px solid #1c4028;font-size:10.5px;color:#a9e8c4;">
+        <div style="font-weight:700;letter-spacing:.06em;color:#26c281;margin-bottom:5px;">METHOD 3 — M1/M2 CLOSE DISTANCE ✓</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;">
+          <span style="color:#565f73;">M1 → M2 Distance</span><span>${signal.m3Distance} candles</span>
+          <span style="color:#565f73;">Maximum Allowed</span><span>${signal.m3Max} candles</span>
+          <span style="color:#565f73;">100T</span><span>${signal.m3_100TIndex>=0 ? fmtTime(signal.candles[signal.m3_100TIndex].openTime) : '—'}</span>
+          <span style="color:#565f73;">100T Price</span><span>${signal.m3_100TIndex>=0 ? fmtPrice(signal.candles[signal.m3_100TIndex].close) : '—'}</span>
+          <span style="color:#565f73;">T 4H EMA50</span><span>${signal.method==='3' ? (signal.m3Require4hT ? (signal.confirm4h && signal.confirm4h.ok ? 'Confirmed' : '—') : 'Optional / Not required') : (signal.confirm4h && signal.confirm4h.ok ? 'Confirmed' : '—')}</span>
+          <span style="color:#565f73;">M2 → 100T Highest High</span><span>${signal.m3Fib ? fmtPrice(signal.m3Fib.price2) : '—'}</span>
+          <span style="color:#565f73;">Fib Anchor</span><span>M2 → 100T Highest High</span>
+        </div>
+      </div>` : ''}
+    </div>
+  `;
+  cardsEl.appendChild(card);
+
+  const prevStatusCls = state.cardStatusCls ? state.cardStatusCls.get(signal.symbol) : undefined;
+  if(!state.cardStatusCls) state.cardStatusCls = new Map();
+  if(prevStatusCls !== undefined && prevStatusCls !== status.cls){
+    const badgeEl = card.querySelector('.card-head .badge');
+    if(status.cls === 'sl') badgeEl.classList.add('pulse-sl');
+    else if(status.cls === 'entered') badgeEl.classList.add('pulse-buy');
+  }
+  state.cardStatusCls.set(signal.symbol, status.cls);
+
+  const chartEl = card.querySelector('.card-chart');
+  const rsiEl = card.querySelector('.card-rsi');
+  const chart = buildChart(chartEl);
+  const rsiChart = buildChart(rsiEl, {rsi:true});
+  const series = renderCandleChart(chart, signal.candles);
+  addEmaLines(chart, signal.candles, signal.ind);
+  renderRsiChart(rsiChart, signal.candles, signal.ind.rsi);
+  syncTimeScales(chart, rsiChart);
+  // Focus the view around R1..a bit past T/entry/SL rather than the whole deep history
+  const startIdx = Math.max(0, signal.r1Index - 10);
+  const endIdx = Math.min(signal.candles.length-1, (signal.slIndex>=0?signal.slIndex:(signal.entryIndex>=0?signal.entryIndex:signal.tIndex)) + 15);
+  chart.timeScale().setVisibleRange({from: toChartTime(signal.candles[startIdx].openTime), to: toChartTime(signal.candles[endIdx].openTime)});
+
+  const overlayHandle = attachOverlays(chart, series, chartEl, signal);
+
+  card.querySelector('.card-head').addEventListener('click', ()=>{
+    symbolInput.value = signal.symbol;
+    loadFocused(signal.symbol);
+    $('focusedChart').scrollIntoView({behavior:'smooth', block:'start'});
+  });
+
+  state.cardCharts.set(signal.symbol, {chart, rsiChart, overlayHandle});
+  applyFilter();
+}
+
+function applyFilter(){
+  const q = filterInput.value.trim().toUpperCase();
+  document.querySelectorAll('.card').forEach(c=>{
+    const sym = c.id.replace('card-','');
+    const match = !q || sym.includes(q);
+    if(match){
+      c.style.display = '';
+      requestAnimationFrame(()=> c.classList.remove('filtered-out'));
+    } else {
+      c.classList.add('filtered-out');
+      setTimeout(()=>{ if(c.classList.contains('filtered-out')) c.style.display='none'; }, 190);
+    }
+  });
+}
+
+function updateWatchlistMeta(){
+  const m = strategyMethod ? (strategyMethod.value==='3' ? ' · Method 3' : ' · Method 1') : '';
+  watchlistMeta.textContent = state.confirmedSignals.size + ' signal' + (state.confirmedSignals.size===1?'':'s') + m;
+}
+
+/* ============================== SCANNING ============================== */
+function setProgress(done, total, modeLabel){
+  const pct = total>0 ? Math.round(done/total*100) : 0;
+  progressBar.style.width = pct + '%';
+  const label = modeLabel ? modeLabel + ' · ' : '';
+  statusLine.innerHTML = `${label}<b>${done} / ${total}</b> scanned · ${state.confirmedSignals.size} confirmed`;
+}
+
+async function scanAll(){
+  if(state.scanning) return;
+  state.scanning = true;
+  scanBtn.textContent = 'Scanning…';
+  scanBtn.disabled = true;
+  scanBtn.classList.add('scanning');
+  progressBar.classList.add('active');
+  liveDot.style.background = '#f0b429';
+  liveDot.style.boxShadow = '0 0 8px #f0b429';
+
+  const mode = scanModeSelect.value; // 'all' | 'topn'
+  let modeLabel = 'ALL COINS';
+
+  try{
+    let symbols;
+    if(mode === 'topn'){
+      const n = Math.max(5, Math.min(600, parseInt(topNInput.value, 10) || 300));
+      modeLabel = `TOP ${n}`;
+      symbols = await fetchTopNPerpetualSymbols(n);
+    } else {
+      // Existing full-market scanner — unchanged.
+      symbols = await fetchPerpetualSymbols();
+    }
+
+    let done = 0;
+    setProgress(0, symbols.length, modeLabel);
+    let idx = 0;
+
+    async function worker(){
+      while(idx < symbols.length){
+        const symbol = symbols[idx++];
+        try{
+          const signal = await processSymbol(symbol);
+          if(signal) renderCard(signal);
+        }catch(e){
+          console.warn('scan error', symbol, e.message);
+        }
+        done++;
+        setProgress(done, symbols.length, modeLabel);
+        updateWatchlistMeta();
+      }
+    }
+    await Promise.all(Array.from({length:SCAN_CONCURRENCY}, worker));
+    statusLine.innerHTML = `${modeLabel} · <b>scan complete</b> · ${symbols.length} pairs · ${state.confirmedSignals.size} confirmed setups`;
+  }catch(e){
+    statusLine.textContent = 'Scan failed: ' + e.message;
+  }finally{
+    state.scanning = false;
+    scanBtn.textContent = 'Scan Now';
+    scanBtn.disabled = false;
+    scanBtn.classList.remove('scanning');
+    progressBar.classList.remove('active');
+    liveDot.style.background = '#22c07a';
+    liveDot.style.boxShadow = '0 0 8px #22c07a';
+  }
+}
+
+// Auto-refresh: re-runs the same staged pipeline to pick up new signals and
+// to advance entry/SL tracking on already-confirmed cards.
+function setAutoRefresh(on){
+  state.autoRefresh = on;
+  if(state.autoTimer){ clearInterval(state.autoTimer); state.autoTimer=null; }
+  if(on){
+    state.autoTimer = setInterval(()=>{ if(!state.scanning) scanAll(); }, AUTO_REFRESH_MS);
+  }
+}
+
+/* ============================== EVENTS ============================== */
+loadBtn.addEventListener('click', ()=> loadFocused(symbolInput.value || 'BTCUSDT'));
+symbolInput.addEventListener('keydown', e=>{ if(e.key==='Enter') loadFocused(symbolInput.value); });
+scanBtn.addEventListener('click', scanAll);
+autoRefreshToggle.addEventListener('change', e=> setAutoRefresh(e.target.checked));
+filterInput.addEventListener('input', applyFilter);
+
+// Settings panel toggle
+settingsBtn.addEventListener('click', ()=>{
+  const visible = settingsPanel.style.display !== 'none';
+  settingsPanel.style.display = visible ? 'none' : 'block';
+  settingsBtn.style.borderColor = visible ? '' : 'var(--accent)';
+  settingsBtn.style.color = visible ? '' : 'var(--accent)';
+});
+
+// Method 3 settings: localStorage persistence
+function m3GetRequire4hT(){
+  try{
+    const sv=localStorage.getItem('m3Require4hT'); return sv===null?M3_DEFAULT_REQUIRE_4H_T:sv!=='false';
+  }catch(e){ return M3_DEFAULT_REQUIRE_4H_T; }
+}
+function m3SaveRequire4hT(val){
+  try{ localStorage.setItem('m3Require4hT', val ? 'true' : 'false'); }catch(e){}
+}
+
+function m3SaveSetting(val){
+  try{ localStorage.setItem('m3MaxDistance', String(val)); }catch(e){}
+}
+function m3LoadSetting(){
+  try{
+    const saved = localStorage.getItem('m3MaxDistance');
+    if(saved !== null){
+      const n = parseInt(saved, 10);
+      if(Number.isInteger(n) && n >= M3_MIN && n <= M3_MAX) return n;
+    }
+  }catch(e){}
+  return M3_DEFAULT_MAX_DISTANCE;
+}
+
+// Restore selected signal timeframe immediately
+signalTfSelect.value = SIGNAL_TF;
+signalTfSettings.value = SIGNAL_TF;
+signalTfSelect.addEventListener('change', ()=>{
+  setSignalTimeframe(signalTfSelect.value);
+  signalTfSettings.value = SIGNAL_TF;
+  statusLine.textContent = 'Timeframe set to ' + SIGNAL_TF + ' — Scan Now to analyze with the new timeframe.';
+});
+signalTfSettings.addEventListener('change', ()=>{
+  setSignalTimeframe(signalTfSettings.value);
+  signalTfSelect.value = SIGNAL_TF;
+  statusLine.textContent = 'Timeframe set to ' + SIGNAL_TF + ' — Scan Now to analyze with the new timeframe.';
+});
+
+// Restore saved value immediately
+m3MaxDistanceInput.value = m3LoadSetting();
+
+// Method 3 T confirmation option: strict 4H EMA50 confirmation by default.
+m3Require4hT.checked = m3GetRequire4hT();
+m3Require4hT.addEventListener('change', ()=>{
+  m3SaveRequire4hT(m3Require4hT.checked);
+  m3TValidationMsg.textContent = m3Require4hT.checked
+    ? '✓ Strict 4H EMA50 confirmation enabled'
+    : '✓ 4H EMA50 confirmation optional';
+  m3TValidationMsg.style.color = 'var(--green)';
+  setTimeout(()=>{ m3TValidationMsg.textContent = ''; }, 2200);
+});
+
+// Validate and save as user types
+m3MaxDistanceInput.addEventListener('input', ()=>{
+  const err = m3ValidateInput(m3MaxDistanceInput.value);
+  m3ValidationMsg.textContent = err || '✓ Saved';
+  m3ValidationMsg.style.color = err ? 'var(--red)' : 'var(--green)';
+  if(!err) m3SaveSetting(parseInt(m3MaxDistanceInput.value.trim(), 10));
+});
+
+// Clear the "Saved" tick after a moment
+m3MaxDistanceInput.addEventListener('blur', ()=>{
+  setTimeout(()=>{ m3ValidationMsg.textContent = ''; }, 2000);
+});
+
+// Auto-open settings when method 3 is selected
+strategyMethod.addEventListener('change', ()=>{
+  if(strategyMethod.value === '3'){
+    settingsPanel.style.display = 'block';
+    settingsBtn.style.borderColor = 'var(--accent)';
+    settingsBtn.style.color = 'var(--accent)';
+    settingsPanel.scrollIntoView({behavior:'smooth', block:'nearest'});
+  } else {
+    settingsBtn.style.borderColor = '';
+    settingsBtn.style.color = '';
+  }
+  updateWatchlistMeta();
+});
+
+scanModeSelect.addEventListener('change', ()=>{
+  const show = scanModeSelect.value === 'topn';
+  topNInput.style.display = show ? 'inline-block' : 'none';
+  if(show){ topNInput.classList.remove('fade-in'); void topNInput.offsetWidth; topNInput.classList.add('fade-in'); }
+});
+
+// Initial focused chart
+symbolInput.value = 'BTCUSDT';
+loadFocused('BTCUSDT');
+
+})();
+</script>
+</body>
+</html>
