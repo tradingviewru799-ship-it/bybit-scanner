@@ -1,0 +1,40 @@
+name: Bybit Signal Scanner
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run scanner
+        env:
+          BYBIT_PROXY:    ${{ secrets.BYBIT_PROXY }}
+          GMAIL_USER:     ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          ALERT_EMAIL:    ${{ secrets.ALERT_EMAIL }}
+        run: node scanner.js
+
+      - name: Upload signal state
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signal-state
+          path: signal-state.json
+          retention-days: 1
+          overwrite: true
