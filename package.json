@@ -1,15 +1,10 @@
 {
-  "name": "kucoin-m3-scanner",
+  "name": "bingx-m3-scanner",
   "version": "1.0.0",
-  "description": "R1·M1·M2·T Method 3 KuCoin USDT-M Futures scanner + email",
+  "description": "R1·M1·M2·T Method 3 BingX USDT-M scanner + email",
   "main": "scanner.js",
-  "scripts": {
-    "scan": "node scanner.js",
-    "dry-run": "node scanner.js --dry-run"
-  },
-  "dependencies": {
-    "nodemailer": "^6.9.14"
-  },
+  "scripts": { "scan": "node scanner.js", "dry-run": "node scanner.js --dry-run" },
+  "dependencies": { "nodemailer": "^6.9.14" },
   "engines": { "node": ">=18" },
   "license": "MIT"
 }

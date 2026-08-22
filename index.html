@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>R1·M1·M2·T Scanner — KuCoin USDT-M</title>
+<title>R1·M1·M2·T Scanner — BingX USDT-M</title>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   :root{
@@ -202,11 +202,11 @@
     <span class="dot" id="liveDot"></span>
     <div>
       <b>R1·M1·M2·T STRATEGY SCANNER</b>
-      <small>KuCoin Futures USDT-M · Method 3 · Selected TF / 4H optional</small>
+      <small>BingX USDT-M Perpetual · Method 3 · Selected TF / 4H optional</small>
     </div>
   </div>
 
-  <input type="text" id="symbolInput" placeholder="XBTUSDTM" />
+  <input type="text" id="symbolInput" placeholder="BTC-USDT" />
   <button id="loadBtn">Load</button>
 
   <select id="scanModeSelect">
@@ -318,14 +318,14 @@
 
 </main>
 
-<footer>Data: KuCoin Futures public API (api-futures.kucoin.com) · USDT-M · No API key · Not financial advice.</footer>
+<footer>Data: BingX public API (open-api.bingx.com) · USDT-M perpetual · No API key · Not financial advice.</footer>
 
 <script>
 (function(){
 "use strict";
 
 /* ============================== CONFIG ============================== */
-const FAPI = 'https://api-futures.kucoin.com';
+const FAPI = 'https://open-api.bingx.com';
 let SIGNAL_TF = localStorage.getItem('signalTf') || '15m';
 const SIGNAL_TF_OPTIONS = ['5m','15m','30m','1h','2h'];
 const CONFIRM_TF = '4h';
@@ -410,10 +410,10 @@ const focusedTitle = $('focusedTitle');
 const focusedInfo = $('focusedInfo');
 const liveDot = $('liveDot');
 
-/* ============================== FETCH HELPERS (KuCoin Futures USDT-M) ============================== */
+/* ============================== FETCH HELPERS (BingX USDT-M) ============================== */
 const INTERVAL_MAP = {
-  '5m': 5, '15m': 15, '30m': 30,
-  '1h': 60, '2h': 120, '4h': 240
+  '5m': '5m', '15m': '15m', '30m': '30m',
+  '1h': '1h', '2h': '2h', '4h': '4h'
 };
 
 async function fetchJSON(url){
@@ -422,14 +422,24 @@ async function fetchJSON(url){
   return res.json();
 }
 
+function withTs(path){
+  const sep = path.includes('?') ? '&' : '?';
+  return FAPI + path + sep + 'timestamp=' + Date.now();
+}
+
 async function fetchPerpetualSymbols(){
   if(state.symbolsCache) return state.symbolsCache;
-  const data = await fetchJSON(FAPI + '/api/v1/contracts/active');
-  if(!data || data.code !== '200000' || !Array.isArray(data.data)){
+  const data = await fetchJSON(withTs('/openApi/swap/v2/quote/contracts'));
+  if(!data || (data.code !== 0 && data.code !== '0') || !Array.isArray(data.data)){
     throw new Error('contracts failed: ' + (data && data.msg));
   }
   const symbols = data.data
-    .filter(s => s.status === 'Open' && s.settleCurrency === 'USDT' && !s.isInverse && s.symbol && (s.type === 'FFWCSX' || s.expireDate == null))
+    .filter(s => {
+      const sym = s.symbol || '';
+      const st = (s.status || s.contractStatus || '').toString().toLowerCase();
+      const ok = !st || st === '1' || st === 'trading' || st === 'online';
+      return sym.endsWith('-USDT') && ok;
+    })
     .map(s => s.symbol)
     .sort();
   state.symbolsCache = symbols;
@@ -437,37 +447,38 @@ async function fetchPerpetualSymbols(){
 }
 
 async function fetchTopNPerpetualSymbols(n){
-  const data = await fetchJSON(FAPI + '/api/v1/contracts/active');
-  if(!data || data.code !== '200000' || !Array.isArray(data.data)){
+  const eligible = new Set(await fetchPerpetualSymbols());
+  const data = await fetchJSON(withTs('/openApi/swap/v2/quote/ticker'));
+  if(!data || (data.code !== 0 && data.code !== '0') || !Array.isArray(data.data)){
     return (await fetchPerpetualSymbols()).slice(0, n);
   }
   return data.data
-    .filter(s => s.status === 'Open' && s.settleCurrency === 'USDT' && !s.isInverse && s.symbol)
-    .map(s => ({symbol: s.symbol, quoteVolume: +(s.turnoverOf24h || s.volumeOf24h || 0)}))
+    .filter(t => eligible.has(t.symbol))
+    .map(t => ({symbol: t.symbol, quoteVolume: +(t.quoteVolume || t.volume || t.turnover || 0)}))
     .sort((a,b) => b.quoteVolume - a.quoteVolume)
     .slice(0, n)
     .map(t => t.symbol);
 }
 
 async function fetchKlinesDeep(symbol, interval, limit){
-  const gran = INTERVAL_MAP[interval] || 15;
-  const to = Date.now();
-  const from = to - Math.min(limit, 500) * gran * 60 * 1000;
-  const url = `${FAPI}/api/v1/kline/query?symbol=${encodeURIComponent(symbol)}&granularity=${gran}&from=${from}&to=${to}`;
+  const iv = INTERVAL_MAP[interval] || '15m';
+  const url = withTs(`/openApi/swap/v3/quote/klines?symbol=${encodeURIComponent(symbol)}&interval=${iv}&limit=${Math.min(limit, 1000)}`);
   const raw = await fetchJSON(url);
-  if(!raw || raw.code !== '200000' || !Array.isArray(raw.data)){
-    throw new Error('kline failed: ' + (raw && raw.msg));
+  if(!raw || (raw.code !== 0 && raw.code !== '0') || !Array.isArray(raw.data)){
+    throw new Error('klines failed: ' + (raw && raw.msg));
   }
+  const minutes = { '5m':5,'15m':15,'30m':30,'1h':60,'2h':120,'4h':240 }[iv] || 15;
   const rows = raw.data.map(k => {
-    const openTime = +k[0];
-    return {
-      openTime,
-      open: +k[1], high: +k[2], low: +k[3], close: +k[4],
-      volume: +k[5],
-      closeTime: openTime + gran * 60 * 1000 - 1,
-    };
+    if(Array.isArray(k)){
+      const openTime = +k[0];
+      return { openTime, open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5],
+        closeTime: k[6]!=null?+k[6]:openTime+minutes*60*1000-1 };
+    }
+    const openTime = +(k.time||k.openTime||k.t);
+    return { openTime, open:+k.open, high:+k.high, low:+k.low, close:+k.close,
+      volume:+(k.volume||0), closeTime: openTime+minutes*60*1000-1 };
   });
-  rows.sort((a,b) => a.openTime - b.openTime);
+  rows.sort((a,b)=>a.openTime-b.openTime);
   return rows;
 }
 
@@ -1380,8 +1391,8 @@ scanModeSelect.addEventListener('change', ()=>{
 });
 
 // Initial focused chart
-symbolInput.value = 'XBTUSDTM';
-loadFocused('XBTUSDTM');
+symbolInput.value = 'BTC-USDT';
+loadFocused('BTC-USDT');
 
 })();
 </script>

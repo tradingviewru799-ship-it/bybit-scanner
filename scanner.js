@@ -1,8 +1,8 @@
 /**
- * scanner.js — KuCoin Futures USDT-M · R1·M1·M2·T · Method 3
- * Base: https://api-futures.kucoin.com
- * Symbols: XBTUSDTM, ETHUSDTM, ... (USDT settle, status Open)
- * Background: top SCAN_TOP_N by 24h turnover (default 150)
+ * scanner.js — BingX USDT-M Perpetual Swap · R1·M1·M2·T · Method 3
+ * Base: https://open-api.bingx.com
+ * Symbols: BTC-USDT, ETH-USDT (USDT-M only)
+ * Top SCAN_TOP_N by volume (default 150)
  */
 
 'use strict';
@@ -12,18 +12,14 @@ const fs = require('fs');
 const nodemailer = require('nodemailer');
 const path = require('path');
 
-const KUCOIN = 'https://api-futures.kucoin.com';
+const BINGX = 'https://open-api.bingx.com';
 
-// KuCoin futures granularity = minutes as number
 const INTERVAL_MAP = {
-  '5m': 5,
-  '15m': 15,
-  '30m': 30,
-  '1h': 60,
-  '4h': 240,
+  '5m': '5m', '15m': '15m', '30m': '30m',
+  '1h': '1h', '4h': '4h',
 };
 
-const DEEP_LIMIT = 300;
+const DEEP_LIMIT = 500;
 const CONFIRM_LIMIT = 300;
 const EMA_FAST = 50, EMA_MID = 100, EMA_SLOW = 200;
 const RSI_PERIOD = 14, RSI_OB = 70, M1_M2_MAX_BARS = 150;
@@ -43,9 +39,9 @@ const SCAN_TOP_N = (() => {
 })();
 
 const FALLBACK = [
-  'XBTUSDTM', 'ETHUSDTM', 'SOLUSDTM', 'XRPUSDTM', 'DOGEUSDTM', 'BNBUSDTM',
-  'ADAUSDTM', 'AVAXUSDTM', 'LINKUSDTM', 'DOTUSDTM', 'LTCUSDTM', 'TRXUSDTM',
-  'ATOMUSDTM', 'NEARUSDTM', 'APTUSDTM', 'ARBUSDTM', 'OPUSDTM', 'SUIUSDTM',
+  'BTC-USDT','ETH-USDT','SOL-USDT','XRP-USDT','DOGE-USDT','BNB-USDT','ADA-USDT',
+  'AVAX-USDT','LINK-USDT','DOT-USDT','LTC-USDT','TRX-USDT','ATOM-USDT','NEAR-USDT',
+  'APT-USDT','ARB-USDT','OP-USDT','SUI-USDT',
 ];
 
 function getTimeframesToScan() {
@@ -60,7 +56,7 @@ function getTimeframesToScan() {
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
-      headers: { 'User-Agent': 'KuCoinM3Scanner/1.0', 'Accept': 'application/json' },
+      headers: { 'User-Agent': 'BingXM3Scanner/1.0', 'Accept': 'application/json' },
       timeout: 25000,
     }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
@@ -70,7 +66,7 @@ function fetchJSON(url) {
       res.on('data', c => raw += c);
       res.on('end', () => {
         try {
-          if (!raw.trim()) return reject(new Error('empty body ' + res.statusCode));
+          if (!raw.trim()) return reject(new Error('empty ' + res.statusCode));
           resolve(JSON.parse(raw));
         } catch (e) {
           reject(new Error('JSON ' + res.statusCode + ' ' + raw.slice(0, 100)));
@@ -94,43 +90,58 @@ async function fetchJSONWithRetry(url, retries = 3, delayMs = 1200) {
   throw last;
 }
 
+function withTs(pathAndQuery) {
+  const sep = pathAndQuery.includes('?') ? '&' : '?';
+  return `${BINGX}${pathAndQuery}${sep}timestamp=${Date.now()}`;
+}
+
 async function fetchKlines(symbol, interval, limit) {
-  const gran = INTERVAL_MAP[interval] || 15;
-  // request enough history: from = now - limit * gran minutes
-  const to = Date.now();
-  const from = to - limit * gran * 60 * 1000;
-  const url = `${KUCOIN}/api/v1/kline/query?symbol=${encodeURIComponent(symbol)}&granularity=${gran}&from=${from}&to=${to}`;
+  const iv = INTERVAL_MAP[interval] || '15m';
+  const url = withTs(
+    `/openApi/swap/v3/quote/klines?symbol=${encodeURIComponent(symbol)}&interval=${iv}&limit=${limit}`
+  );
   const raw = await fetchJSONWithRetry(url);
-  if (!raw || raw.code !== '200000' || !Array.isArray(raw.data)) {
-    throw new Error(`kline ${symbol}: ${raw && raw.msg}`);
+  if (!raw || (raw.code !== 0 && raw.code !== '0') || !Array.isArray(raw.data)) {
+    throw new Error(`klines ${symbol}: ${raw && (raw.msg || raw.message)}`);
   }
-  // [time, open, high, low, close, volume, turnover] — usually oldest first or mixed; sort
+  // BingX often: open, close, high, low as strings; time fields vary
+  const minutes = { '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240 }[iv] || 15;
   const rows = raw.data.map(k => {
-    const openTime = +k[0];
+    // array form [openTime, open, high, low, close, volume, closeTime] OR object
+    if (Array.isArray(k)) {
+      const openTime = +k[0];
+      return {
+        openTime,
+        open: +k[1], high: +k[2], low: +k[3], close: +k[4],
+        volume: +k[5],
+        closeTime: k[6] != null ? +k[6] : openTime + minutes * 60 * 1000 - 1,
+      };
+    }
+    const openTime = +(k.time || k.openTime || k.t);
     return {
       openTime,
-      open: +k[1], high: +k[2], low: +k[3], close: +k[4],
-      volume: +k[5],
-      closeTime: openTime + gran * 60 * 1000 - 1,
+      open: +k.open, high: +k.high, low: +k.low, close: +k.close,
+      volume: +(k.volume || k.vol || 0),
+      closeTime: openTime + minutes * 60 * 1000 - 1,
     };
   });
   rows.sort((a, b) => a.openTime - b.openTime);
-  return rows.slice(-limit);
+  return rows;
 }
 
 async function fetchAllSymbols() {
-  const data = await fetchJSONWithRetry(`${KUCOIN}/api/v1/contracts/active`);
-  if (!data || data.code !== '200000' || !Array.isArray(data.data)) {
+  const url = withTs('/openApi/swap/v2/quote/contracts');
+  const data = await fetchJSONWithRetry(url);
+  if (!data || (data.code !== 0 && data.code !== '0') || !Array.isArray(data.data)) {
     throw new Error(data && data.msg);
   }
   return data.data
-    .filter(s =>
-      s.status === 'Open' &&
-      s.settleCurrency === 'USDT' &&
-      !s.isInverse &&
-      s.symbol &&
-      (s.type === 'FFWCSX' || s.expireDate == null)
-    )
+    .filter(s => {
+      const sym = s.symbol || '';
+      const status = (s.status || s.contractStatus || '').toString().toLowerCase();
+      const okStatus = !status || status === '1' || status === 'trading' || status === 'online';
+      return sym.endsWith('-USDT') && okStatus;
+    })
     .map(s => s.symbol)
     .sort();
 }
@@ -138,17 +149,20 @@ async function fetchAllSymbols() {
 async function fetchTopNSymbols(n) {
   try {
     const eligible = new Set(await fetchAllSymbols());
-    // contracts/active already has turnoverOf24h on each item
-    const data = await fetchJSONWithRetry(`${KUCOIN}/api/v1/contracts/active`);
-    if (!data || data.code !== '200000' || !Array.isArray(data.data)) {
+    const url = withTs('/openApi/swap/v2/quote/ticker');
+    const data = await fetchJSONWithRetry(url);
+    if (!data || (data.code !== 0 && data.code !== '0') || !Array.isArray(data.data)) {
       return [...eligible].slice(0, n);
     }
     return data.data
-      .filter(s => eligible.has(s.symbol))
-      .map(s => ({ symbol: s.symbol, vol: +(s.turnoverOf24h || s.volumeOf24h || 0) }))
+      .filter(t => eligible.has(t.symbol))
+      .map(t => ({
+        symbol: t.symbol,
+        vol: +(t.quoteVolume || t.volume || t.turnover || t.quoteVol || 0),
+      }))
       .sort((a, b) => b.vol - a.vol)
       .slice(0, n)
-      .map(s => s.symbol);
+      .map(t => t.symbol);
   } catch (e) {
     console.log('[scanner] topN fail:', e.message);
     return FALLBACK.slice(0, n);
@@ -393,14 +407,14 @@ function buildEmailHtml(sig) {
   return `<!DOCTYPE html><html><body style="margin:0;background:#0a0c11;font-family:system-ui,sans-serif;">
   <div style="max-width:480px;margin:20px auto;background:#12151d;border:1px solid #242a38;border-radius:12px;overflow:hidden;">
     <div style="padding:16px 20px;background:#0d1621;border-bottom:1px solid #242a38;">
-      <div style="font-size:11px;color:#8892a4;">R1·M1·M2·T · Method ${sig.method} · KuCoin USDT-M</div>
+      <div style="font-size:11px;color:#8892a4;">R1·M1·M2·T · Method ${sig.method} · BingX USDT-M</div>
       <div style="font-size:22px;font-weight:700;color:#e9edf4;margin-top:4px;">${sig.symbol} · ${sig.tf.toUpperCase()}</div>
     </div>
     <div style="padding:16px 20px;font-size:13px;color:#c9d1d9;">
       <div>R1 ${fmtTime(sig.r1Time)} · M1 ${fmtTime(sig.m1Time)} · M2 ${fmtTime(sig.m2Time)} · T ${fmtTime(sig.tTime)}</div>
-      <div style="margin-top:8px;">Fib 0.5 ${fmtPrice(sig.fib50)} · 0.382 ${fmtPrice(sig.fib618)} · SL ${fmtPrice(sig.fib786)}</div>
-      <div style="margin-top:6px;color:#8892a4;">M1→M2 ${sig.m3Dist}/${sig.m3Max} · 4H ${sig.m3Require4h ? 'on' : 'off'}</div>
-      <div style="margin-top:8px;">Entry ${sig.entryTime ? fmtTime(sig.entryTime) : 'waiting'} · SL ${sig.slTime ? fmtTime(sig.slTime) : '—'}</div>
+      <div style="margin-top:8px;">Fib 0.5 ${fmtPrice(sig.fib50)} · SL ${fmtPrice(sig.fib786)}</div>
+      <div style="margin-top:6px;color:#8892a4;">M1→M2 ${sig.m3Dist}/${sig.m3Max}</div>
+      <div style="margin-top:8px;">Entry ${sig.entryTime ? fmtTime(sig.entryTime) : 'waiting'}</div>
     </div>
     <div style="padding:12px 20px;font-size:11px;color:#565f73;border-top:1px solid #242a38;">${fmtTime(sig.scannedAt)} · Not financial advice</div>
   </div></body></html>`;
@@ -413,7 +427,7 @@ async function sendAlert(sig) {
   if (!user || !pass) { console.log('[email] Skipped'); return; }
   const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
   await transporter.sendMail({
-    from: `"KuCoin Signal Scanner" <${user}>`,
+    from: `"BingX Signal Scanner" <${user}>`,
     to,
     subject: `🚨 ${sig.symbol} ${sig.tf.toUpperCase()} — Method ${sig.method}`,
     html: buildEmailHtml(sig),
@@ -426,13 +440,13 @@ async function main() {
   const tfs = getTimeframesToScan();
   console.log(`[${new Date().toISOString()}] TFs: ${tfs.join(', ')}`);
   console.log(`[config] method=${METHOD} m3Max=${M3_MAX_DISTANCE} 4h=${M3_REQUIRE_4H_T} topN=${SCAN_TOP_N}`);
-  console.log('[api] KuCoin Futures USDT-M direct');
+  console.log('[api] BingX USDT-M swap direct');
 
   try {
-    const h = await fetchJSON(`${KUCOIN}/api/v1/timestamp`);
-    console.log('[api] timestamp OK', h && h.data);
+    const h = await fetchJSON(withTs('/openApi/swap/v2/server/time'));
+    console.log('[api] time OK', h && (h.data || h.serverTime || h.code));
   } catch (e) {
-    console.error('[fatal] KuCoin unreachable:', e.message);
+    console.error('[fatal] BingX unreachable:', e.message);
     process.exit(1);
   }
 
@@ -441,7 +455,7 @@ async function main() {
 
   try {
     const symbols = await fetchTopNSymbols(SCAN_TOP_N);
-    console.log(`[scanner] ${symbols.length} symbols (top turnover)`);
+    console.log(`[scanner] ${symbols.length} symbols (top volume, USDT-M)`);
 
     for (const tf of tfs) {
       console.log(`[scanner] Scanning ${tf}…`);

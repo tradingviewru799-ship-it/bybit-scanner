@@ -1,27 +1,20 @@
-# R1·M1·M2·T Method 3 Scanner (KuCoin USDT-M Futures)
+# R1·M1·M2·T Method 3 Scanner (BingX USDT-M)
 
-KuCoin Futures **USDT-M** perpetual · Method 3 · Gmail · **No proxy**.
+BingX **USDT-M perpetual swap** · Method 3 · Gmail · No proxy.
 
 ## Symbols
-Format: `XBTUSDTM`, `ETHUSDTM`, `SOLUSDTM`, … (not BTCUSDT).
+`BTC-USDT`, `ETH-USDT`, … only pairs ending `-USDT` (USDT-M). Coin-M ignored.
 
-## Mock / Demo trading (auto trading පෙර)
-KuCoin has **Futures Demo Trading** (paper):
-1. KuCoin app/web → Futures → switch to **Demo** / Practice account  
-2. Virtual balance එක්ක order place කරලා strategy test කරන්න  
-3. Real API auto trading පස්සේ — separate **live** API key (trade only, withdraw off)
+## Auto trading later
+Yes — BingX has full futures trade API (API key + secret).
+- Create key: trade permission ON, withdraw OFF
+- Demo/copy trading available on platform for practice
+- Scanner stays public-data only; order bot is separate later
 
-## Lag (700+ pairs)
-Background default: **Top 150** by 24h turnover (`SCAN_TOP_N`).  
-UI: Top N or All Coins.
+## Lag
+Background: top **150** by volume (`SCAN_TOP_N`). UI: Top N or All.
 
 ## Setup
-1. Public repo — upload all files from zip  
-2. `.github/workflows/scanner.yml`  
-3. Secrets: `GMAIL_USER`, `GMAIL_APP_PASS`  
-4. Variables optional: `SCAN_TOP_N=150`, `M3_MAX_DISTANCE=30`, `M3_REQUIRE_4H_T=false`  
-5. Pages + Actions → Run workflow  
-
-No Cloudflare Worker.
+Upload zip files → `.github/workflows/scanner.yml` → secrets GMAIL_* → Pages + Run workflow.
 
 Not financial advice.
