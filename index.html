@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>R1·M1·M2·T Scanner — Bybit USDT Perpetual</title>
+<title>R1·M1·M2·T Scanner — KuCoin USDT-M</title>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   :root{
@@ -202,11 +202,11 @@
     <span class="dot" id="liveDot"></span>
     <div>
       <b>R1·M1·M2·T STRATEGY SCANNER</b>
-      <small>Bybit USDT Perpetual · Selected signal timeframe / 4H confirm</small>
+      <small>KuCoin Futures USDT-M · Method 3 · Selected TF / 4H optional</small>
     </div>
   </div>
 
-  <input type="text" id="symbolInput" placeholder="BTCUSDT" />
+  <input type="text" id="symbolInput" placeholder="XBTUSDTM" />
   <button id="loadBtn">Load</button>
 
   <select id="scanModeSelect">
@@ -215,7 +215,9 @@
   </select>
   <input type="number" id="topNInput" min="5" max="600" step="5" value="300" />
 
-  <select id="strategyMethod" title="Strategy Method" style="display:none;">
+  <select id="strategyMethod" title="Strategy Method">
+    <option value="1">Method 1 — Existing Strategy</option>
+    <!-- Method 3 is default -->
     <option value="3" selected>Method 3 — M1/M2 Close Distance</option>
   </select>
 
@@ -231,8 +233,7 @@
       <option value="30m">30m</option>
       <option value="1h">1h</option>
       <option value="2h">2h</option>
-      <option value="3h">3h</option>
-    </select>
+          </select>
   </label>
 
   <input type="text" id="filterInput" placeholder="Filter watchlist…" />
@@ -271,8 +272,7 @@
           <option value="30m">30 minutes</option>
           <option value="1h">1 hour</option>
           <option value="2h">2 hours</option>
-          <option value="3h">3 hours</option>
-        </select>
+                  </select>
         <span style="font-family:var(--mono);font-size:11px;color:var(--dimmer);">R1/M1/M2/T/100T/Fib use this timeframe</span>
       </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -318,19 +318,18 @@
 
 </main>
 
-<footer>Data: Bybit Linear Perpetual (via Cloudflare Worker proxy) · No API key required · Not financial advice.</footer>
+<footer>Data: KuCoin Futures public API (api-futures.kucoin.com) · USDT-M · No API key · Not financial advice.</footer>
 
 <script>
 (function(){
 "use strict";
 
 /* ============================== CONFIG ============================== */
-// ★ Replace with your Cloudflare Worker URL
-const FAPI = 'https://silent-rain-36f3.tradingviewru799.workers.dev/';
+const FAPI = 'https://api-futures.kucoin.com';
 let SIGNAL_TF = localStorage.getItem('signalTf') || '15m';
-const SIGNAL_TF_OPTIONS = ['5m','15m','30m','1h','2h','3h'];
+const SIGNAL_TF_OPTIONS = ['5m','15m','30m','1h','2h'];
 const CONFIRM_TF = '4h';
-const DEEP_LIMIT = 1000;      // deep history candles for EMA seed accuracy
+const DEEP_LIMIT = 200;      // deep history candles for EMA seed accuracy
 const CONFIRM_LIMIT = 400;
 const EMA_FAST = 50, EMA_MID = 100, EMA_SLOW = 200;
 const RSI_PERIOD = 14;
@@ -350,7 +349,7 @@ function setSignalTimeframe(tf){
 }
 
 /* ============================== METHOD 3 CONFIG ============================== */
-const M3_DEFAULT_MAX_DISTANCE = 5;
+const M3_DEFAULT_MAX_DISTANCE = 30;
 const M3_DEFAULT_REQUIRE_4H_T = false;
 const M3_MIN = 1;
 const M3_MAX = 150; // hard cap — never tighter than the existing 150-bar rule
@@ -411,10 +410,10 @@ const focusedTitle = $('focusedTitle');
 const focusedInfo = $('focusedInfo');
 const liveDot = $('liveDot');
 
-/* ============================== FETCH HELPERS (Bybit via CF Worker) ============================== */
+/* ============================== FETCH HELPERS (KuCoin Futures USDT-M) ============================== */
 const INTERVAL_MAP = {
-  '5m': '5', '15m': '15', '30m': '30',
-  '1h': '60', '2h': '120', '3h': '120', '4h': '240'
+  '5m': 5, '15m': 15, '30m': 30,
+  '1h': 60, '2h': 120, '4h': 240
 };
 
 async function fetchJSON(url){
@@ -425,62 +424,51 @@ async function fetchJSON(url){
 
 async function fetchPerpetualSymbols(){
   if(state.symbolsCache) return state.symbolsCache;
-  let symbols = [];
-  let cursor = '';
-  do {
-    let url = FAPI + '/v5/market/instruments-info?category=linear&limit=1000';
-    if(cursor) url += '&cursor=' + encodeURIComponent(cursor);
-    const data = await fetchJSON(url);
-    if(!data || data.retCode !== 0 || !data.result || !Array.isArray(data.result.list)){
-      throw new Error('instruments-info failed: ' + (data && data.retMsg));
-    }
-    const page = data.result.list
-      .filter(s => s.contractType === 'LinearPerpetual' && s.quoteCoin === 'USDT' && s.status === 'Trading')
-      .map(s => s.symbol);
-    symbols = symbols.concat(page);
-    cursor = data.result.nextPageCursor || '';
-  } while(cursor);
-  symbols = [...new Set(symbols)].sort();
+  const data = await fetchJSON(FAPI + '/api/v1/contracts/active');
+  if(!data || data.code !== '200000' || !Array.isArray(data.data)){
+    throw new Error('contracts failed: ' + (data && data.msg));
+  }
+  const symbols = data.data
+    .filter(s => s.status === 'Open' && s.settleCurrency === 'USDT' && !s.isInverse && s.symbol && (s.type === 'FFWCSX' || s.expireDate == null))
+    .map(s => s.symbol)
+    .sort();
   state.symbolsCache = symbols;
   return symbols;
 }
 
 async function fetchTopNPerpetualSymbols(n){
-  const eligible = new Set(await fetchPerpetualSymbols());
-  // Bybit tickers endpoint
-  const data = await fetchJSON(FAPI + '/v5/market/tickers?category=linear');
-  if(!data || data.retCode !== 0 || !data.result || !Array.isArray(data.result.list)){
-    // fallback: just return first N symbols
+  const data = await fetchJSON(FAPI + '/api/v1/contracts/active');
+  if(!data || data.code !== '200000' || !Array.isArray(data.data)){
     return (await fetchPerpetualSymbols()).slice(0, n);
   }
-  const ranked = data.result.list
-    .filter(t => eligible.has(t.symbol))
-    .map(t => ({symbol: t.symbol, quoteVolume: +(t.turnover24h || t.volume24h || 0)}))
+  return data.data
+    .filter(s => s.status === 'Open' && s.settleCurrency === 'USDT' && !s.isInverse && s.symbol)
+    .map(s => ({symbol: s.symbol, quoteVolume: +(s.turnoverOf24h || s.volumeOf24h || 0)}))
     .sort((a,b) => b.quoteVolume - a.quoteVolume)
     .slice(0, n)
     .map(t => t.symbol);
-  return ranked;
 }
 
 async function fetchKlinesDeep(symbol, interval, limit){
-  const bybitInterval = INTERVAL_MAP[interval] || '15';
-  const url = `${FAPI}/v5/market/kline?category=linear&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`;
+  const gran = INTERVAL_MAP[interval] || 15;
+  const to = Date.now();
+  const from = to - Math.min(limit, 500) * gran * 60 * 1000;
+  const url = `${FAPI}/api/v1/kline/query?symbol=${encodeURIComponent(symbol)}&granularity=${gran}&from=${from}&to=${to}`;
   const raw = await fetchJSON(url);
-  if(!raw || raw.retCode !== 0 || !raw.result || !Array.isArray(raw.result.list)){
-    throw new Error('kline failed: ' + (raw && raw.retMsg));
+  if(!raw || raw.code !== '200000' || !Array.isArray(raw.data)){
+    throw new Error('kline failed: ' + (raw && raw.msg));
   }
-  // Bybit returns newest first → reverse to oldest first
-  const list = raw.result.list.slice().reverse();
-  const minutes = parseInt(bybitInterval, 10) || 15;
-  return list.map(k => {
-    const openTime = parseInt(k[0], 10);
+  const rows = raw.data.map(k => {
+    const openTime = +k[0];
     return {
       openTime,
       open: +k[1], high: +k[2], low: +k[3], close: +k[4],
       volume: +k[5],
-      closeTime: openTime + minutes * 60 * 1000,
+      closeTime: openTime + gran * 60 * 1000 - 1,
     };
   });
+  rows.sort((a,b) => a.openTime - b.openTime);
+  return rows;
 }
 
 function isCandleClosed(c){ return c.closeTime < Date.now(); }
@@ -1309,7 +1297,7 @@ settingsBtn.addEventListener('click', ()=>{
 // Method 3 settings: localStorage persistence
 function m3GetRequire4hT(){
   try{
-    const sv=localStorage.getItem('m3Require4hT'); return sv===null?M3_DEFAULT_REQUIRE_4H_T:sv!=='false';
+    return localStorage.getItem('m3Require4hT') === 'true';
   }catch(e){ return M3_DEFAULT_REQUIRE_4H_T; }
 }
 function m3SaveRequire4hT(val){
@@ -1392,8 +1380,8 @@ scanModeSelect.addEventListener('change', ()=>{
 });
 
 // Initial focused chart
-symbolInput.value = 'BTCUSDT';
-loadFocused('BTCUSDT');
+symbolInput.value = 'XBTUSDTM';
+loadFocused('XBTUSDTM');
 
 })();
 </script>
