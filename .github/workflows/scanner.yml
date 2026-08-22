@@ -1,4 +1,4 @@
-name: KuCoin Method 3 Scanner
+name: BingX Method 3 Scanner
 
 on:
   schedule:
@@ -9,7 +9,6 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     timeout-minutes: 14
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,7 +23,7 @@ jobs:
           STRATEGY_METHOD:   '3'
           M3_MAX_DISTANCE:   ${{ vars.M3_MAX_DISTANCE || '30' }}
           M3_REQUIRE_4H_T:   ${{ vars.M3_REQUIRE_4H_T || 'false' }}
-          SCAN_TOP_N:        ${{ vars.SCAN_TOP_N || '150' }}
+          SCAN_TOP_N:        ${{ vars.SCAN_TOP_N || '300' }}
         run: node scanner.js
       - uses: actions/upload-artifact@v4
         if: always()
