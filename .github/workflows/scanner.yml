@@ -1,4 +1,4 @@
-name: Bybit Signal Scanner
+name: KuCoin Method 3 Scanner
 
 on:
   schedule:
@@ -8,33 +8,28 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 14
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm install
-
+          node-version: '22'
+      - run: npm install
       - name: Run scanner
         env:
-          BYBIT_PROXY:    ${{ secrets.BYBIT_PROXY }}
-          GMAIL_USER:     ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-          ALERT_EMAIL:    ${{ secrets.ALERT_EMAIL }}
+          GMAIL_USER:        ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS:    ${{ secrets.GMAIL_APP_PASS }}
+          ALERT_EMAIL:       ${{ secrets.ALERT_EMAIL }}
+          STRATEGY_METHOD:   '3'
+          M3_MAX_DISTANCE:   ${{ vars.M3_MAX_DISTANCE || '30' }}
+          M3_REQUIRE_4H_T:   ${{ vars.M3_REQUIRE_4H_T || 'false' }}
+          SCAN_TOP_N:        ${{ vars.SCAN_TOP_N || '150' }}
         run: node scanner.js
-
-      - name: Upload signal state
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: signal-state
           path: signal-state.json
-          retention-days: 1
+          retention-days: 2
           overwrite: true
