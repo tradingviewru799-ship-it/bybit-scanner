@@ -998,7 +998,7 @@ function clearFocused(){
 
 async function loadFocused(symbolRaw){
   const symbol = normalizeSymbol(symbolRaw);
-  if(!symbol){ setStatus('Invalid symbol — use BTC-USDT or BTCUSDT.P', true); return; }
+  if(!symbol){ statusLine.textContent = 'Invalid symbol — use BTC-USDT or BTCUSDT.P'; return; }
   symbolInput.value = symbol;
   focusedTitle.textContent = symbol + ' — loading…';
   focusedInfo.innerHTML = 'Fetching selected timeframe deep history and running the R1 → M1 → M2 → T pipeline…';
