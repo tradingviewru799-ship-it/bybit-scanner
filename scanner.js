@@ -138,9 +138,11 @@ async function fetchAllSymbols() {
   return data.data
     .filter(s => {
       const sym = s.symbol || '';
-      const status = (s.status || s.contractStatus || '').toString().toLowerCase();
-      const okStatus = !status || status === '1' || status === 'trading' || status === 'online';
-      return sym.endsWith('-USDT') && okStatus;
+      if (!sym.endsWith('-USDT')) return false;
+      const st = s.status;
+      if (st === 1 || st === '1' || st === true) return true;
+      const status = String(st || s.contractStatus || '').toLowerCase();
+      return !status || status === 'trading' || status === 'online' || status === 'true';
     })
     .map(s => s.symbol)
     .sort();
